@@ -17,7 +17,7 @@ use version qw//;
 
 use base 'PAR::Repository::Zip', 'PAR::Repository::DBM', 'PAR::Repository::ScanPAR';
 
-our $VERSION = '0.01_01';
+our $VERSION = '0.01_02';
 our $VERBOSE = 0;
 
 =head1 NAME
@@ -52,11 +52,11 @@ It contains:
 
 =over 2
 
-=item modules_dists.dbm
+=item modules_dists.dbm.zip
 
 An index that maps module names to file names.
 
-=item symlinks.dbm
+=item symlinks.dbm.zip
 
 An index that maps file names to other files. You shouldn't have to care
 about it.
@@ -442,6 +442,8 @@ in the C<5.008007> form!
 
 It can be C<any_version> instead of an actual perl version. For details,
 see the discussion in the manual entry for the C<inject> method.
+
+=back
 
 =cut
 

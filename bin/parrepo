@@ -2,7 +2,7 @@
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 require PAR::Repository;
 use Getopt::Long qw/GetOptions/;
@@ -274,6 +274,25 @@ Parameters:
   -o or --overwrite
     Set this if you want to overwrite a distribution of the
 	same name in the repository.
+
+=item remove
+
+Removes a distribution from the repository. As with the inject command,
+you can specify a distribution (file) name using the C<-f> option or
+specify the separate pieces of information necessary to construct the
+distribution file name.
+
+Parameters:
+
+  -f or --file
+    The distribution file to remove.
+  -r or --repository
+    Specifies the repository path.
+  -n or --distname
+  -v or --distversion
+  -a or --arch
+  -p or --perlversion
+    Set the necessary distribution information.
 
 =back
 
