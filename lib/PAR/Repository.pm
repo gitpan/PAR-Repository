@@ -17,8 +17,20 @@ use version qw//;
 
 use base 'PAR::Repository::Zip', 'PAR::Repository::DBM', 'PAR::Repository::ScanPAR';
 
-our $VERSION = '0.01_02';
+use constant REPOSITORY_INFO_FILE => 'repository_info.yml';
+
+our $VERSION = '0.02';
 our $VERBOSE = 0;
+
+# template for a repository_info.yml file
+our $Info_Template = {
+    repository_version => $VERSION,
+};
+
+# Hash of compatible PAR::Repository versions
+our $Compatible_Versions = {
+    $VERSION => 1,
+};
 
 =head1 NAME
 
@@ -26,6 +38,8 @@ PAR::Repository - Create and modify PAR repositories
 
 =head1 SYNOPSIS
 
+  # Usually, you want to use the 'parrepo' script which comes with
+  # this distribution.
   use PAR::Repository;
   
   my $repo = PAR::Repository->new( path => '/path/to/repository' );
@@ -41,9 +55,16 @@ PAR::Repository - Create and modify PAR repositories
 
 =head1 DESCRIPTION
 
-=head2 EXPORT
+This module is intended for creation and maintenance of PAR repositories.
+A PAR repository is collection of F<.par> archives which contain Perl code
+and associated libraries for use on specific platforms. In the most common
+case, these archives differ from CPAN distributions in that they ship the
+(possibly compiled) output of C<make> in the F<blib/> subdirectory of the
+CPAN distribution's build directory.
 
-None.
+You can access a PAR repository using the L<PAR::Repository::Client> module
+or the L<PAR> module which provides syntactic sugar around the client.
+L<PAR> allows you to load libraries from repositories on demand.
 
 =head2 PAR REPOSITORIES
 
@@ -60,6 +81,24 @@ An index that maps module names to file names.
 
 An index that maps file names to other files. You shouldn't have to care
 about it.
+
+=item repository_info.yml
+
+A simple YAML file which contains meta information for the repository.
+It currently contains the following bits of information:
+
+=over 2
+
+=item repository_version
+
+The version of PAR::Repository this repository was created with.
+When opening an existing repository, PAR::Repository checks that the
+repository was created by a compatible PAR::Repository version.
+
+Similarily, PAR::Repository::Client checks that the repository has
+a compatible version.
+
+=back
 
 =item I<arch/perl-version> directories
 
@@ -138,6 +177,7 @@ sub new {
 		symlinks_hash => undef,
 		modules_dbm_temp_file => undef,
 		symlinks_dbm_temp_file => undef,
+        info => undef,
 	} => $class;
 
 	$self->verbose(2, "Created new repository object in path '$path'");
@@ -145,9 +185,31 @@ sub new {
 	# check that the repository exists or create it.	
 	my $mod_dbm = catfile($path, PAR::Repository::DBM::MODULES_DBM_FILE());
 	my $sym_dbm = catfile($path, PAR::Repository::DBM::SYMLINKS_DBM_FILE());
-	if (-d $path and -f $mod_dbm.'.zip'	and -f $sym_dbm.'.zip' ) {
+	my $info_file = catfile($path, PAR::Repository::REPOSITORY_INFO_FILE());
+	if (
+        -d $path
+        and -f $mod_dbm.'.zip' and -f $sym_dbm.'.zip'
+        and -f $info_file
+    ) {
 		# everything is in place. good.
 		$self->verbose(3, "Repository exists");
+        
+        $self->{info} = YAML::Syck::LoadFile($info_file);
+        if (
+            not defined $self->{info}
+            or not exists $self->{info}{repository_version}
+        ) {
+            croak("Repository exists, but it does not contain a valid repository_info.yml file.");
+        }
+        elsif (
+            not exists
+            $Compatible_Versions->{$self->{info}{repository_version}}
+        ) {
+            croak("Repository exists, but it was created with an incompatible version of PAR::Repository (".$self->{info}{repository_version}.")");
+        }
+        else {
+            $self->verbose(3, "Opened repository successfully");
+        }
 	}
 	else {
 		# create it.
@@ -168,6 +230,9 @@ sub new {
 		($vol, $path, $file) = splitpath($sym_dbm);
 		$self->_zip_file($sym_dbm, $sym_dbm.'.zip', $file);
 		unlink($sym_dbm);
+
+        YAML::Syck::DumpFile($info_file, $Info_Template);
+        $self->{info} = YAML::Syck::LoadFile($info_file);
 	}
 	return $self;
 }
@@ -272,6 +337,7 @@ sub inject {
 	croak(__PACKAGE__."->inject(): Specified file '$dfile' does not exist.")
 	  if not -f $dfile;
 	
+    # determine the name of the target (in-repository) file
 	my ($target_file, $distname, $distver, $arch, $perlver)
 	  = $self->_get_target_file('inject', \%args);
 
@@ -449,7 +515,7 @@ see the discussion in the manual entry for the C<inject> method.
 
 sub remove {
 	my $self = shift;
-	croak(__PACKAGE__."->inject() takes an even number of arguments.")
+	croak(__PACKAGE__."->remove() takes an even number of arguments.")
 	  if @_ % 2;
 	  
 	$self->verbose(2, "Entering inject()");
@@ -457,13 +523,14 @@ sub remove {
 	my %args = @_;
 	
 	my $dfile = $args{file};
-	croak(__PACKAGE__."->inject() needs a 'file' parameter.")
+	croak(__PACKAGE__."->remove() needs a 'file' parameter.")
 	  if not defined $dfile;
-	croak(__PACKAGE__."->inject(): Specified file '$dfile' does not exist.")
+	croak(__PACKAGE__."->remove(): Specified file '$dfile' does not exist.")
 	  if not -f $dfile;
 	
+    # determine the name of the target (in-repository) file
 	my ($target_file, $distname, $distver, $arch, $perlver)
-	  = $self->_get_target_file('inject', \%args);
+	  = $self->_get_target_file('remove', \%args);
 
 	$self->verbose(3, "Target file for removal will be '$target_file'");
 

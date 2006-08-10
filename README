@@ -1,6 +1,17 @@
 PAR-Repository
 ==============
 
+This module is intended for creation and maintenance of PAR repositories.
+A PAR repository is collection of .par archives which contain Perl code
+and associated libraries for use on specific platforms. In the most common
+case, these archives differ from CPAN distributions in that they ship the
+(possibly compiled) output of "make" in the "blib/" subdirectory of the
+CPAN distribution's build directory.
+
+You can access a PAR repository using the PAR::Repository::Client module
+or the PAR module which provides syntactic sugar around the client.
+PAR allows you to load libraries from repositories on demand.
+
 INSTALLATION
 
 To install this module type the following:
@@ -12,13 +23,10 @@ To install this module type the following:
 
 DEPENDENCIES
 
-This module requires these other modules and libraries:
-
-  blah blah blah
+This module requires other modules and libraries. They are listed in
+the Makefile.PL file with associated versions.
 
 COPYRIGHT AND LICENCE
-
-Put the correct copyright and licence information here.
 
 Copyright (C) 2006 by Steffen Müller
 

@@ -1,0 +1,63 @@
+ToDo list
+---------
+
+General:
+- Security?
+
+PAR::Repository:
+
+- implement querying
+- implement scripts support
+- implement checksums?
+- implement scanning for pure-perl modules?
+
+- implement svk-like (syntax wise) script for managing the repo
+==> query commands
+
+PAR:
+- implement new PAR loading syntax and semantics:
+(DONE) --> use PAR { repository => 'http://foo/' };
+--> use PAR { repository => 'http://foo/', install => 1 };
+==> on module load, if module not found in @INC, load from
+    repo and install permanently.
+--> use PAR { repository => 'http://foo/', upgrade => 1 };
+==> on module load - even if module in @INC - check for new version in
+    repo and upgrade if necessary. (If module not in @INC, install)
+--> use PAR { repository => 'http://foo/', run => 'foo.pl' };
+==> fetch the .par that has foo.pl from the rep and run foo.pl
+    (and include foo.par in @INC)
+--> use PAR { repository => 'http://foo/', run => 'foo.pl', install => 1 };
+==> Same, but install permanently.
+--> use PAR { repository => 'http://foo/', run => 'foo.pl', upgrade => 1 };
+==> Same, but check for updates and install permanently.
+
+file => 'foo' || repository => 'foo'
+fallback => 1|0 (1 default for repo, 0 default for file)
+install => 1|0 or upgrade => 1|0 only for repository?
+
+(DONE) --> accept hashrefs in import
+(DONE) --> check for bad options
+(DONE) --> implement handling for fallback loading
+(DONE) --> implement file handling
+(DONE) ----> implement fallback=1
+(DONE) ----> implement fallback=0
+(DONE) --> implement run => 'foo'
+(DONE) --> implement repository handling
+
+
+
+
+PAR::Repository::Client:
+- find better name?
+
+(DONE) - prepare skeleton
+
+- code for installing
+- code for running scripts
+- code for @INC hacking ==> PAR
+- code for upgrading ==> checksums?
+- "update" mode needs to deal with dists that are no longer available.
+
+
+
+
