@@ -7,7 +7,6 @@ General:
 PAR::Repository:
 
 - implement querying
-- implement scripts support
 - implement checksums?
 - implement scanning for pure-perl modules?
 
@@ -43,18 +42,16 @@ install => 1|0 or upgrade => 1|0 only for repository?
 (DONE) ----> implement fallback=0
 (DONE) --> implement run => 'foo'
 (DONE) --> implement repository handling
-
+--> implement run => 'foo' for repositories
+==> (implement script support for the client first)
 
 
 
 PAR::Repository::Client:
 - find better name?
 
-(DONE) - prepare skeleton
-
 - code for installing
 - code for running scripts
-- code for @INC hacking ==> PAR
 - code for upgrading ==> checksums?
 - "update" mode needs to deal with dists that are no longer available.
 

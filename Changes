@@ -1,5 +1,13 @@
 Revision history for Perl extension PAR::Repository.
 
+0.03     Thu Aug 10 18:01 2006
+    - Added scripts support.
+    - Added support for upgrading repository versions.
+    - Fixed a dangerous bug in the remove() method. (It didn't work
+      correctly for symlinks before!)
+    - Removing files from the repository by specifying individual bits
+      of information now works.
+
 0.02     Thu Aug 10 15:00 2006
     - Added new file "repository_info.yml" to the repositories.
     - Checks for compatible repository versions when opening a

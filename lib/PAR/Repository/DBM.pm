@@ -8,9 +8,10 @@ use Carp qw/croak/;
 use File::Spec::Functions qw/catfile splitpath/;
 use DBM::Deep;
 
-our $VERSION = '0.01';
+our $VERSION = '0.03';
 use constant 'MODULES_DBM_FILE'  => 'modules_dists.dbm';
 use constant 'SYMLINKS_DBM_FILE' => 'symlinks.dbm';
+use constant 'SCRIPTS_DBM_FILE'  => 'scripts_dists.dbm';
 
 
 =head1 NAME
@@ -33,9 +34,10 @@ None.
 
 =head2 GLOBALS
 
-This package has two constants:
+This package has three constants:
 
-MODULES_DBM_FILE and SYMLINKS_DBM_FILE. They are accessible
+MODULES_DBM_FILE, SYMLINKS_DBM_FILE, and SCRIPTS_DBM_FILE.
+They are accessible
 via C<PAR::Repository::DBM::..._DBM_FILE>. They indicate
 the file names of the DBM databases.
 
@@ -92,6 +94,20 @@ Example: (with some extra linebreaks to keep the text width down)
             'any_arch/any_version/Math-Symbolic-0.502-
              any_arch-any_version.par'
           ],
+  }
+
+=head2 SCRIPTS-DISTS DBM
+
+This DBM file is a hash at top level. It associates script (executable)
+names with distributions much like the C<modules_dists.dbm> file.
+
+Example:
+
+  {
+    'parrepo' => {
+      'PAR-Repository-0.03-x86_64-any_arch-5.8.7.par' => '0.02',
+      'PAR-Repository-0.02-x86_64-any_arch-any_version.par' => '0.01',
+    },
   }
 
 =head1 METHODS
@@ -179,6 +195,41 @@ sub symlinks_dbm {
 	return $hash;
 }
 
+=head2 scripts_dbm
+
+Opens the scripts_dists.dbm.zip file in the repository and
+returns a tied hash reference to that file.
+
+If the file does not exist, it returns undef.
+
+You should know what you are doing when you use this
+method.
+
+=cut
+
+sub scripts_dbm {
+	my $self = shift;
+	$self->verbose(2, 'Entering scripts_dbm()');
+
+	if (defined $self->{scripts_dbm_hash}) {
+		return $self->{scripts_dbm_hash};
+	}
+
+	my $old_dir = Cwd::cwd();
+	chdir($self->{path});
+	my $file = PAR::Repository::DBM::SCRIPTS_DBM_FILE().'.zip';
+	chdir($old_dir), return undef if not -f $file;
+
+	my ($hash, $tempfile) = $self->_open_dbm($file);
+	chdir($old_dir), return undef if not defined $hash;
+
+	$self->{scripts_dbm_hash} = $hash;
+	$self->{scripts_dbm_temp_file} = $tempfile;
+
+	chdir($old_dir);
+
+	return $hash;
+}
 
 
 =head2 close_modules_dbm
@@ -243,6 +294,39 @@ sub close_symlinks_dbm {
 
 	unlink $self->{symlinks_dbm_temp_file};
 	$self->{symlinks_dbm_temp_file} = undef;
+
+	return 1;
+}
+
+=head2 close_scripts_dbm
+
+Closes the C<scripts_dists.dbm> file committing any
+changes and then zips it back into
+C<scripts_dists.dbm.zip>.
+
+This is called when the object is destroyed.
+
+=cut
+
+sub close_scripts_dbm {
+	my $self = shift;
+	$self->verbose(2, 'Entering close_scripts_dbm()');
+	my $hash = $self->{scripts_dbm_hash};
+	return if not defined $hash;
+
+	my $obj = tied($hash);
+	$self->{scripts_dbm_hash} = undef;
+	undef $hash;
+	undef $obj;
+	
+	$self->_zip_file(
+		$self->{scripts_dbm_temp_file},
+		catfile($self->{path}, PAR::Repository::DBM::SCRIPTS_DBM_FILE().'.zip'),
+		PAR::Repository::DBM::SCRIPTS_DBM_FILE()
+	);
+
+	unlink $self->{scripts_dbm_temp_file};
+	$self->{scripts_dbm_temp_file} = undef;
 
 	return 1;
 }

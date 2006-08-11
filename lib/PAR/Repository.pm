@@ -19,7 +19,7 @@ use base 'PAR::Repository::Zip', 'PAR::Repository::DBM', 'PAR::Repository::ScanP
 
 use constant REPOSITORY_INFO_FILE => 'repository_info.yml';
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 our $VERBOSE = 0;
 
 # template for a repository_info.yml file
@@ -30,6 +30,7 @@ our $Info_Template = {
 # Hash of compatible PAR::Repository versions
 our $Compatible_Versions = {
     $VERSION => 1,
+    '0.02' => 1,
 };
 
 =head1 NAME
@@ -76,11 +77,18 @@ It contains:
 =item modules_dists.dbm.zip
 
 An index that maps module names to file names.
+Details can be found in L<PAR::Repository::DBM>.
 
 =item symlinks.dbm.zip
 
 An index that maps file names to other files. You shouldn't have to care
 about it.
+Details can be found in L<PAR::Repository::DBM>.
+
+=item scripts_dists.dbm.zip
+
+An index that maps script names to file names.
+Details can be found in L<PAR::Repository::DBM>.
 
 =item repository_info.yml
 
@@ -171,12 +179,18 @@ sub new {
 	my $path = $args{path};
 	my $self = bless {
 		path => $path,
-		modules_dbm => undef,
-		symlinks_dbm => undef,
+        
+        # The tied dbm hashes
 		modules_hash => undef,
 		symlinks_hash => undef,
+		scripts_hash => undef,
+
+        # The temp dbm files on disk
 		modules_dbm_temp_file => undef,
 		symlinks_dbm_temp_file => undef,
+		scripts_dbm_temp_file => undef,
+       
+        # The YAML info as Perl data structure
         info => undef,
 	} => $class;
 
@@ -185,6 +199,7 @@ sub new {
 	# check that the repository exists or create it.	
 	my $mod_dbm = catfile($path, PAR::Repository::DBM::MODULES_DBM_FILE());
 	my $sym_dbm = catfile($path, PAR::Repository::DBM::SYMLINKS_DBM_FILE());
+	my $scr_dbm = catfile($path, PAR::Repository::DBM::SCRIPTS_DBM_FILE());
 	my $info_file = catfile($path, PAR::Repository::REPOSITORY_INFO_FILE());
 	if (
         -d $path
@@ -193,7 +208,8 @@ sub new {
     ) {
 		# everything is in place. good.
 		$self->verbose(3, "Repository exists");
-        
+
+        # load repository info
         $self->{info} = YAML::Syck::LoadFile($info_file);
         if (
             not defined $self->{info}
@@ -210,6 +226,18 @@ sub new {
         else {
             $self->verbose(3, "Opened repository successfully");
         }
+        
+        # Generate scripts db and upgrade repository version
+        # if the scripts db doesn't exist.
+        if (not -f $scr_dbm.'.zip') {
+		    $self->verbose(1, "Upgrading repository version to $VERSION");
+            $self->_update_info_version or return ();
+		    $self->verbose(3, "Creating scripts database");
+    		my ($vol, $path, $file) = splitpath($scr_dbm);
+	    	$self->_zip_file($scr_dbm, $scr_dbm.'.zip', $file);
+    		unlink($scr_dbm);
+        }
+        
 	}
 	else {
 		# create it.
@@ -221,6 +249,7 @@ sub new {
 		{
 			my $mod_db = DBM::Deep->new($mod_dbm);
 			my $sym_db = DBM::Deep->new($sym_dbm);
+			my $scr_db = DBM::Deep->new($scr_dbm);
 		}
 
 		$self->verbose(3, "Creating repository databases");
@@ -230,6 +259,9 @@ sub new {
 		($vol, $path, $file) = splitpath($sym_dbm);
 		$self->_zip_file($sym_dbm, $sym_dbm.'.zip', $file);
 		unlink($sym_dbm);
+		($vol, $path, $file) = splitpath($scr_dbm);
+		$self->_zip_file($scr_dbm, $scr_dbm.'.zip', $file);
+		unlink($scr_dbm);
 
         YAML::Syck::DumpFile($info_file, $Info_Template);
         $self->{info} = YAML::Syck::LoadFile($info_file);
@@ -257,6 +289,13 @@ this automatic detection using the corresponding parameters.
 If the file exists in the repository, inject returns false. If the file
 was added successfully, inject returns true. See the C<overwrite> parameter
 for details.
+
+C<inject()> scans the distribution for modules and indexes these in
+the modules-dists dbm. Additionally, it scans the distribution for
+scripts in the C<script> and C<bin> subdirectories of the distribution.
+(All files in these folders are considered executables. C<main.pl> is
+skipped.) You can turn the indexing of scripts off with the C<no_scripts>
+parameter.
 
 Optional parameters:
 
@@ -318,6 +357,12 @@ C<any_version> directory.
 If this is set to a true value, if the file exists in the repository, it
 will be overwritten.
 
+=item I<no_scripts>
+
+By default, PAR::Repository indexes all modules found in a distribution
+as well as all scripts. Set this parameter to a true value to
+skip indexing scripts.
+
 =back
 
 =cut
@@ -368,6 +413,13 @@ sub inject {
 		croak("Your PAR distribution is either invalid or doesn't contain any modules.");
 	}
 
+    # determine any scripts to index
+    my $scripts;
+    if (not $args{no_scripts}) {
+		$self->verbose(3, "Scanning par for scripts");
+        $scripts = $self->scan_par_for_scripts($dfile);
+    }
+
 	# create path in repository
 	my $destpath = catdir($arch, $perlver);
 	$self->verbose(3, "Creating path in repository: '$destpath'");
@@ -398,6 +450,12 @@ sub inject {
 	$self->verbose(3, "Inserting packages into modules DBM");
 	$self->_add_packages(packages => $packages, file => $target_file);
 
+    if (not $args{no_scripts}) {
+    	# insert into scripts dbm.
+	    $self->verbose(3, "Inserting scripts into scripts DBM");
+    	$self->_add_scripts(scripts => $scripts, file => $target_file);
+    }
+
 	my $is_any_arch = $args{any_arch} && !($arch eq 'any_arch');
 	my $is_any_perl = $args{any_version} && !($arch eq 'any_version');
 	
@@ -413,9 +471,11 @@ sub inject {
 			sym => $sym,
 			overwrite => $args{overwrite},
 		);
-		# associate packages with symlink as well
+		# associate packages and scripts with symlink as well
 		$self->_add_packages(packages => $packages, file => $sym)
 		  if $success;
+		$self->_add_scripts(scripts => $scripts, file => $sym)
+		  if $success and not $args{no_scripts};
 	}
 	if ($is_any_perl) {
 		my $dir = catdir($arch, 'any_version');
@@ -426,8 +486,11 @@ sub inject {
 			sym => $sym,
 			overwrite => $args{overwrite},
 		);
+		# associate packages and scripts with symlink as well
 		$self->_add_packages(packages => $packages, file => $sym)
 		  if $success;
+		$self->_add_scripts(scripts => $scripts, file => $sym)
+		  if $success and not $args{no_scripts};
 	}
 	if ($is_any_arch and $is_any_perl) {
 		my $dir = catdir('any_arch', 'any_version');
@@ -438,12 +501,16 @@ sub inject {
 			sym => $sym,
 			overwrite => $args{overwrite},
 		);
+		# associate packages and scripts with symlink as well
 		$self->_add_packages(packages => $packages, file => $sym)
 		  if $success;
+		$self->_add_scripts(scripts => $scripts, file => $sym)
+		  if $success and not $args{no_scripts};
 	}
 
 	$self->close_modules_dbm;
 	$self->close_symlinks_dbm;
+	$self->close_scripts_dbm;
 	return 1;
 }
 
@@ -511,6 +578,9 @@ see the discussion in the manual entry for the C<inject> method.
 
 =back
 
+You may omit the C<file> parameter if the full file name can be constructed
+from the individual pieces of information.
+
 =cut
 
 sub remove {
@@ -518,15 +588,15 @@ sub remove {
 	croak(__PACKAGE__."->remove() takes an even number of arguments.")
 	  if @_ % 2;
 	  
-	$self->verbose(2, "Entering inject()");
+	$self->verbose(2, "Entering remove()");
 	
 	my %args = @_;
 	
-	my $dfile = $args{file};
-	croak(__PACKAGE__."->remove() needs a 'file' parameter.")
-	  if not defined $dfile;
-	croak(__PACKAGE__."->remove(): Specified file '$dfile' does not exist.")
-	  if not -f $dfile;
+#	my $dfile = $args{file};
+#	croak(__PACKAGE__."->remove() needs a 'file' parameter.")
+#	  if not defined $dfile;
+#	croak(__PACKAGE__."->remove(): Specified file '$dfile' does not exist.")
+#	  if not -f $dfile;
 	
     # determine the name of the target (in-repository) file
 	my ($target_file, $distname, $distver, $arch, $perlver)
@@ -550,7 +620,22 @@ sub remove {
 		# target is a symlink, remove the link only.
 		$self->verbose(1, "Target file is a symlink. Removing the symlink only");
 		chdir($old_dir);
-		return $self->_remove_symlink(sym => $target_file);
+	    my $modh = $self->modules_dbm;
+	    my $scrh = $self->scripts_dbm;
+        if (
+            not $self->_remove_files_from_db($modh, [$target_file])
+            or not $self->_remove_files_from_db($scrh, [$target_file])
+		    or not $self->_remove_symlink(sym => $target_file)
+        ) {
+            $self->close_modules_dbm;
+            $self->close_scripts_dbm;
+            return();
+        }
+        else {
+            $self->close_modules_dbm;
+            $self->close_scripts_dbm;
+            return 1;
+        }
 	}
 
 	chdir($old_dir);
@@ -559,6 +644,7 @@ sub remove {
 	
 	my $symh = $self->symlinks_dbm;
 	my $modh = $self->modules_dbm;
+	my $scrh = $self->scripts_dbm;
 	
 	# find links
 	# Why so complicated? Because DBM::Deep has too much magic!
@@ -573,29 +659,18 @@ sub remove {
 	my @module_and_links = ($target_file);
 	push @module_and_links, @$links;
 
-	# remove mention of the distro and links from modules db
-	# (This is slow!)
-	my %modlinks = map {($_ => undef)} @module_and_links;
-	foreach my $namespace (keys %$modh) {
-		my $mod_in_dists = $modh->{$namespace};
-		foreach my $distfile (keys %$mod_in_dists) {
-			if (exists $modlinks{$distfile}) {
-				delete $mod_in_dists->{$distfile};
-			}
-		}
-		# is empty? namespace no more in repository?
-		if (keys(%$mod_in_dists) == 0) {
-			delete $modh->{$namespace};
-		}
-	}
-	
+	# remove mention of the distro and links
+    # from modules and scripts dbs (This is slow!)
+    $self->_remove_files_from_db($modh, \@module_and_links);
+    $self->_remove_files_from_db($scrh, \@module_and_links);
+    
 	# remove links
 	foreach my $link (@$links) {
 		$self->_remove_symlink(sym => $link)
 	}
 	
 	# remove the whole archive from the symlinks db
-	if ( @{$symh->{$target_file}} == 0 ) {
+	if ( defined($symh->{$target_file}) and @{$symh->{$target_file}} == 0 ) {
 		delete $symh->{$target_file};
 	}
 
@@ -608,10 +683,10 @@ sub remove {
 	chdir($old_dir);
     $self->close_modules_dbm;
     $self->close_symlinks_dbm;
+    $self->close_scripts_dbm;
 
 	return 1;	
 }
-
 
 =head2 verbose
 
@@ -725,6 +800,34 @@ sub _add_packages {
 	return 1;
 }
 
+=head2 _add_scripts
+
+Adds a number of script E<lt>-E<gt> file associations to the
+scriptsE<lt>-E<gt>dists DBM file.
+
+Parameters: C<scripts => \%script_hash> a hash of script names as keys
+and their versions (optionally) as values. C<file => $target_file>
+the file in the repository to associate these scripts with.
+
+For internal use only!
+
+=cut
+
+sub _add_scripts {
+	my $self = shift;
+	$self->verbose(2, "Entering _add_scripts()");
+	my %args = @_;
+	my $scripts = $args{scripts};
+	my $target_file = $args{file};
+	
+	my $hash = $self->scripts_dbm;
+	foreach my $scr (keys %$scripts) {
+		$hash->{$scr} = {} if not exists $hash->{$scr};
+		$hash->{$scr}{$target_file} = $scripts->{$scr}{version};
+	}
+	return 1;
+}
+
 
 =head2 _add_symlink
 
@@ -799,6 +902,76 @@ sub _add_symlink {
 	chdir($old_dir);
 	
 	return 1;
+}
+
+
+=head2 _update_info_version
+
+Writes the YAML repository info file and upgrades the
+repository version to the current version.
+
+Should be used with care and considered a private method.
+
+=cut
+
+sub _update_info_version {
+    my $self = shift;
+	$self->verbose(2, "Entering _update_info_version");
+    my $yaml = $self->{info};
+    $yaml->{repository_version} = $VERSION;
+	my $info_file = catfile($self->{path}, PAR::Repository::REPOSITORY_INFO_FILE());
+    unless ($yaml->write($info_file)) {
+        croak("Could not write repository info YAML file to '$info_file'.");
+    }
+    return 1;
+}
+
+=head2 _remove_files_from_db
+
+First argument is the reference to the modules or
+scripts DBM hash. Second argument is an array reference to
+an array of file names. Removes all mention of those
+distribution files (symlinks or actual files) from the
+DBM hash. This is a slow operation because the hash
+associates in the opposite direction.
+
+If any occurrances have been deleted, this method cleans up
+the DBM file.
+
+Returns 1 on success.
+
+This is a private method.
+
+=cut
+
+sub _remove_files_from_db {
+    my $self = shift;
+    my $db = shift;
+    my $files = shift;
+    
+	my %files = map {($_ => undef)} @$files;
+    my $deleted = 0;
+	foreach my $namespace_or_script (keys %$db) {
+		my $in_dists = $db->{$namespace_or_script};
+		foreach my $distfile (keys %$in_dists) {
+			if (exists $files{$distfile}) {
+                $deleted++;
+				delete $in_dists->{$distfile};
+			}
+		}
+		# is empty? namespace no more in repository?
+		if (keys(%$in_dists) == 0) {
+            $deleted++;
+			delete $db->{$namespace_or_script};
+		}
+	}
+
+    if ($deleted) {
+        # recover disk space. See DBM::Deep docs.
+        tied(%$db)->optimize();
+    }
+    
+    return 1;
 }
 
 
@@ -881,7 +1054,6 @@ sub _get_target_file {
 	croak("Could not determine distribution version") if not defined $distver;
 	croak("Could not determine distribution architecture") if not defined $arch;
 	croak("Could not determine distribution perl version") if not defined $perlver;
-
 	my $target_file = join('-', $distname, $distver, $arch, $perlver).".par";
 	$self->verbose(3, "Target file will be '$target_file'");
 

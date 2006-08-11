@@ -2,7 +2,7 @@
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 require PAR::Repository;
 use Getopt::Long qw/GetOptions/;
@@ -20,6 +20,7 @@ my %Opt = (
 	overwrite  => [ 'overwrite|o' ],
 	anys       => [ 'any-arch|anyarch|any_arch', 'any-version|anyversion|any_version' ],
 	verbose    => [ 'verbose+', 'verbosity=i' ],
+    no_scripts => [ 'no-scripts|no_scripts|noscripts' ],
 );
 
 sub create_cmd {
@@ -49,7 +50,7 @@ sub create_cmd {
 sub inject_cmd {
 	my %o = (repository => 'repo');
 	GetOptions( \%o, map {@$_} @Opt{qw/
-		verbose repository dist_attr file overwrite anys
+		verbose repository dist_attr file overwrite anys no_scripts
 	/},);
 
 	$PAR::Repository::VERBOSE = defined($o{verbosity}) ? $o{verbosity} : $o{verbose} || 0;
@@ -96,6 +97,7 @@ sub inject_cmd {
 			(defined $o{'any-arch'}    ? (any_arch    => $o{'any-arch'})    : ()),
 			(defined $o{'any-version'} ? (any_version => $o{'any-version'}) : ()),
 			(defined $o{overwrite}     ? (overwrite   => $o{overwrite})     : ()),
+			(defined $o{no_scripts}    ? (no_scripts  => $o{no_scripts})    : ()),
 		);
 	}
 
@@ -118,16 +120,22 @@ sub remove_cmd {
 	my @files;
 	if (
 		not defined $o{file}
+        and (
+            not defined $o{distname}
+            or not defined $o{distversion}
+            or not defined $o{arch}
+            or not defined $o{perlversion}
+        )
 	) {
-		print "Error: Could not find distribution file to remove. Use --file to specify it.\n";
+		print "Error: Could not find distribution file to remove. Use --file to specify it or supply the necessary individual bits of information (dist name, version, architecture, perl version).\n";
 		exit(1);
 	}
 	
 	my $repo = PAR::Repository->new( path => $o{repository} );
 
-	print "Removing file '$o{file}' from repository.\n";
+	print "Removing file from repository.\n";
 	my $success = $repo->remove(
-		file => $o{file},
+		(defined $o{file}          ? (file        => $o{file})          : ()),
 		(defined $o{distname}      ? (distname    => $o{distname})      : ()),
 		(defined $o{distversion}   ? (distversion => $o{distversion})   : ()),
 		(defined $o{arch}          ? (arch        => $o{arch})          : ()),
@@ -274,10 +282,13 @@ Parameters:
   -o or --overwrite
     Set this if you want to overwrite a distribution of the
 	same name in the repository.
+  --no-scripts or --noscripts or --no_scripts
+    Do not import any executables into the scripts database.
 
 =item remove
 
-Removes a distribution from the repository. As with the inject command,
+Removes a distribution or a symlink from the repository.
+As with the inject command,
 you can specify a distribution (file) name using the C<-f> option or
 specify the separate pieces of information necessary to construct the
 distribution file name.

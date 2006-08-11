@@ -10,23 +10,24 @@ use File::Path qw/rmtree/;
 use ExtUtils::Manifest;
 require ExtUtils::MM;
 
-our $VERSION = '0.01';
+our $VERSION = '0.03';
 
 =head1 NAME
 
-PAR::Repository::ScanPAR - Scan a PAR distro for packages
+PAR::Repository::ScanPAR - Scan a PAR distro for packages and scripts
 
 =head1 SYNOPSIS
 
   use PAR::Repository;
   ...
-  my $pkgs = $repository->scan_par_for_packages;
+  my $pkgs    = $repository->scan_par_for_packages;
+  my $scripts = $repository->scan_par_for_scripts;
 
 =head1 DESCRIPTION
 
 This module is for internal use only.
 It contains code for scanning a PAR distribution for
-packages.
+packages and scripts.
 
 =head2 EXPORT
 
@@ -49,7 +50,7 @@ distribution. Scans that distribution for .pm files and scans
 those for packages and versions. Returns a hash of
 the package names as keys and hash refs as values. The hashes contain
 the path to the file in the PAR as the key "file" and (if found)
-the version of the package is the key "version.
+the version of the package is the key "version".
 
 Returns undef on error.
 
@@ -142,6 +143,51 @@ sub _parse_packages_from_pm {
 	return \%pkg;
 }
 
+
+=head2 scan_par_for_scripts
+
+First argument must be the path and file name of a PAR
+distribution. Scans that distribution for executable files
+and scans
+those for versions. Returns a hash of
+the script names as keys and hash refs as values. The hashes contain
+the path to the file in the PAR as the key "file" and (if found)
+the version of the script as the key "version".
+
+Returns undef on error.
+
+=cut
+
+sub scan_par_for_scripts {
+	my $self = shift;
+	$self->verbose(2, "Entering scan_par_for_scripts()");
+	my $par = shift;
+	
+	my $old_path = Cwd::cwd();
+
+	my (undef, $tmpdir) = $self->_unzip_dist_to_tmpdir($par);
+	chdir($tmpdir);
+	my @scripts =
+        grep { /^script\/(?!\.)/i or /^bin\/(?!\.)/i }
+        keys %{ExtUtils::Manifest::manifind()};
+	
+	my %scr;
+	foreach my $script (@scripts) {
+        (undef, undef, my $scriptname) = splitpath($script);
+        
+        my $version = MM->parse_version($script);
+	    $scr{$scriptname} = {
+            file => $script,
+            version => $version,
+        } if not defined $scr{$scriptname}{version}
+		    or (defined $version
+				and $scr{$scriptname}{version} < $version);
+	}
+	
+	chdir($old_path);
+	rmtree([$tmpdir]);
+	return \%scr;
+}
 
 
 1;
