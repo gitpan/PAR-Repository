@@ -15,11 +15,16 @@ use Archive::Zip qw//;
 use File::Temp qw//;
 use version qw//;
 
-use base 'PAR::Repository::Zip', 'PAR::Repository::DBM', 'PAR::Repository::ScanPAR';
+use base qw/
+    PAR::Repository::Zip
+    PAR::Repository::DBM
+    PAR::Repository::ScanPAR
+    PAR::Repository::Query
+/;
 
 use constant REPOSITORY_INFO_FILE => 'repository_info.yml';
 
-our $VERSION = '0.03';
+our $VERSION = '0.10';
 our $VERBOSE = 0;
 
 # template for a repository_info.yml file
@@ -30,6 +35,7 @@ our $Info_Template = {
 # Hash of compatible PAR::Repository versions
 our $Compatible_Versions = {
     $VERSION => 1,
+    '0.03' => 1,
     '0.02' => 1,
 };
 
@@ -53,6 +59,7 @@ PAR::Repository - Create and modify PAR repositories
   $repo->remove(
     file => '...'
   );
+  $repo->query_module(regex => 'Foo::Bar');
 
 =head1 DESCRIPTION
 
@@ -149,6 +156,9 @@ I<Distribution-Name>-I<Distribution-Version>-I<Architecture>-I<Perl-Version>.par
 Following is a list of class and instance methods.
 (Instance methods until otherwise mentioned.)
 
+Other methods callable on C<PAR::Repository> objects are inherited
+from classes listed in the I<SEE ALSO> section.
+
 =cut
 
 =head2 new
@@ -222,6 +232,15 @@ sub new {
             $Compatible_Versions->{$self->{info}{repository_version}}
         ) {
             croak("Repository exists, but it was created with an incompatible version of PAR::Repository (".$self->{info}{repository_version}.")");
+        }
+        # the following is a special case because the "incompatible changes
+        # with every "\d+.\d" release" rule was introduced in 0.10
+        elsif (
+            $Compatible_Versions->{$self->{info}{repository_version}} eq '0.03'
+        ) {
+            $self->_update_info_version or return ();
+            $self->verbose(3, "Updated repository version");
+            $self->verbose(3, "Opened repository successfully");
         }
         else {
             $self->verbose(3, "Opened repository successfully");
@@ -1075,6 +1094,10 @@ sub DESTROY {
 __END__
 
 =head1 SEE ALSO
+
+This module inherits from L<PAR::Repository::DBM>,
+L<PAR::Repository::Zip>, L<PAR::Repository::Query>,
+L<PAR::Repository::ScanPAR>
 
 This module is directly related to the C<PAR> project. You need to have
 basic familiarity with it.
