@@ -2,7 +2,7 @@
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = '0.10';
+our $VERSION = '0.12';
 
 require PAR::Repository;
 use Getopt::Long qw/GetOptions/;
@@ -181,7 +181,7 @@ sub _module_query_cmd {
     );
 
     if (not @$match) {
-        print "There we no matching modules in the repository.\n";
+        print "There were no matching modules in the repository.\n";
     }
     else {
         print "Modules matching '$what' contained in the\nfollowing distributions:\n";
@@ -213,7 +213,7 @@ sub _script_query_cmd {
     );
 
     if (not @$match) {
-        print "There we no matching scripts in the repository.\n";
+        print "There were no matching scripts in the repository.\n";
     }
     else {
         print "Scripts matching '$what' contained in the\nfollowing distributions:\n";
@@ -245,10 +245,10 @@ sub _dist_query_cmd {
     );
 
     if (not @$match) {
-        print "There we no matching distributions in the repository.\n";
+        print "There were no matching distributions in the repository.\n";
     }
     else {
-        print "Destributions matching '$what':\n";
+        print "Distributions matching '$what':\n";
         while (@$match) {
             my $dist = shift @$match;
             my $modules = shift @$match;
@@ -277,9 +277,12 @@ sub query_cmd {
     my $what = shift @ARGV;
     
     my %qcmds = (
-        module => \&_module_query_cmd,
-        script => \&_script_query_cmd,
-        dist   => \&_dist_query_cmd,
+        module       => \&_module_query_cmd,
+        mod          => \&_module_query_cmd,
+        script       => \&_script_query_cmd,
+        dist         => \&_dist_query_cmd,
+        distro       => \&_dist_query_cmd,
+        distribution => \&_dist_query_cmd,
     );
     
     if ( not defined $cmd or not defined $what ) {

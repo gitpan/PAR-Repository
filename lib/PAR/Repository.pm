@@ -24,7 +24,7 @@ use base qw/
 
 use constant REPOSITORY_INFO_FILE => 'repository_info.yml';
 
-our $VERSION = '0.10';
+our $VERSION = '0.12';
 our $VERBOSE = 0;
 
 # template for a repository_info.yml file
@@ -35,6 +35,9 @@ our $Info_Template = {
 # Hash of compatible PAR::Repository versions
 our $Compatible_Versions = {
     $VERSION => 1,
+    '0.12' => 1,
+    '0.11' => 1,
+    '0.10' => 1,
     '0.03' => 1,
     '0.02' => 1,
 };

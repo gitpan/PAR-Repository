@@ -1,7 +1,7 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         PAR-Repository
-version:      0.10
+version:      0.12
 version_from: lib/PAR/Repository.pm
 installdirs:  site
 requires:
@@ -12,10 +12,10 @@ requires:
     File::Path:                    0
     File::Spec:                    0
     File::Temp:                    0
-    PAR::Dist:                     0.15_01
+    PAR::Dist:                     0.18
     Pod::Text:                     0
     version:                       0.50
     YAML::Syck:                    0.62
 
 distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.17
+generated_by: ExtUtils::MakeMaker version 6.30

@@ -28,7 +28,7 @@ WriteMakefile(
 		'File::Temp' => '0',
 		'File::Copy' => '0',
         'Archive::Zip' => '0',
-		'PAR::Dist' => '0.15_01',
+		'PAR::Dist' => '0.18',
 		'YAML::Syck' => '0.62',
 		'version' => '0.50',
 		'Pod::Text' => '0',
