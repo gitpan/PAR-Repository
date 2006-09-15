@@ -24,7 +24,7 @@ use base qw/
 
 use constant REPOSITORY_INFO_FILE => 'repository_info.yml';
 
-our $VERSION = '0.12';
+our $VERSION = '0.13';
 our $VERBOSE = 0;
 
 # template for a repository_info.yml file
@@ -35,6 +35,7 @@ our $Info_Template = {
 # Hash of compatible PAR::Repository versions
 our $Compatible_Versions = {
     $VERSION => 1,
+    '0.13' => 1,
     '0.12' => 1,
     '0.11' => 1,
     '0.10' => 1,
@@ -642,8 +643,8 @@ sub remove {
 		# target is a symlink, remove the link only.
 		$self->verbose(1, "Target file is a symlink. Removing the symlink only");
 		chdir($old_dir);
-	    my $modh = $self->modules_dbm;
-	    my $scrh = $self->scripts_dbm;
+	    my ($modh) = $self->modules_dbm;
+	    my ($scrh) = $self->scripts_dbm;
         if (
             not $self->_remove_files_from_db($modh, [$target_file])
             or not $self->_remove_files_from_db($scrh, [$target_file])
@@ -664,9 +665,9 @@ sub remove {
 	
 	# target is a file. remove file and its symlinks.
 	
-	my $symh = $self->symlinks_dbm;
-	my $modh = $self->modules_dbm;
-	my $scrh = $self->scripts_dbm;
+	my ($symh) = $self->symlinks_dbm;
+	my ($modh) = $self->modules_dbm;
+	my ($scrh) = $self->scripts_dbm;
 	
 	# find links
 	# Why so complicated? Because DBM::Deep has too much magic!
@@ -842,7 +843,7 @@ sub _add_scripts {
 	my $scripts = $args{scripts};
 	my $target_file = $args{file};
 	
-	my $hash = $self->scripts_dbm;
+	my ($hash) = $self->scripts_dbm;
 	foreach my $scr (keys %$scripts) {
 		$hash->{$scr} = {} if not exists $hash->{$scr};
 		$hash->{$scr}{$target_file} = $scripts->{$scr}{version};
@@ -896,7 +897,7 @@ sub _add_symlink {
 	}
 
 	# get the symlinks dbm while in the old path
-	my $shash = $self->symlinks_dbm;
+	my ($shash) = $self->symlinks_dbm;
 
 	my $old_dir = Cwd::cwd();
 	chdir($self->{path});
@@ -1028,7 +1029,7 @@ sub _remove_symlink {
 	my $old_dir = Cwd::cwd();
 	chdir($self->{path});
 
-	my $shash = $self->symlinks_dbm;
+	my ($shash) = $self->symlinks_dbm;
 	
 	if (not -l $sym_full) {
 		$self->verbose(1, "Symlink '$sym' doesn't exist");

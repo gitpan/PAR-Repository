@@ -33,6 +33,7 @@ WriteMakefile(
 		'version' => '0.50',
 		'Pod::Text' => '0',
 		'ExtUtils::Manifest' => '0',
+        'PAR::Repository::Query' => '0.12',
     }, # e.g., Module::Name => 1.1
     EXE_FILES => [
       'bin/parrepo',

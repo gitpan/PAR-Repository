@@ -1,5 +1,15 @@
 Revision history for Perl extension PAR::Repository.
 
+0.13     Fri Sep 15 10:50 2006
+    - Broke out PAR::Repository::Query into its own distribution
+      so that PAR::Repository and PAR::Repository::Client can share
+      the same querying interface.
+    - Slight change to the interface!
+      modules_dbm(), symlinks_dbm(), and scripts_dbm() now all return
+      the name of the temporary file as second return value in order
+      to make *_dbm() work consistently across PAR::Repository::Query
+      uses.
+
 0.12     Sun Aug 28 10:31 2006
     - Explicitly depending on PAR::Dist 0.18.
     - Added optional POD tests.

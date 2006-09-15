@@ -123,9 +123,10 @@ L<PAR::Repository> inherits from this class.
 =head2 modules_dbm
 
 Opens the modules_dists.dbm.zip file in the repository and
-returns a tied hash reference to that file.
+returns a tied hash reference to that file. Second return value is the
+file name.
 
-If the file does not exist, it returns undef.
+If the file does not exist, it returns the empty list.
 
 You should know what you are doing when you use this
 method.
@@ -143,26 +144,27 @@ sub modules_dbm {
 	my $old_dir = Cwd::cwd();
 	chdir($self->{path});
 	my $file = PAR::Repository::DBM::MODULES_DBM_FILE().'.zip';
-	chdir($old_dir), return undef if not -f $file;
+	chdir($old_dir), return() if not -f $file;
 
 	my ($hash, $tempfile) = $self->_open_dbm($file);
-	chdir($old_dir), return undef if not defined $hash;
+	chdir($old_dir), return() if not defined $hash;
 
 	$self->{modules_dbm_hash} = $hash;
 	$self->{modules_dbm_temp_file} = $tempfile;
 
 	chdir($old_dir);
 
-	return $hash;
+	return ($hash, $tempfile);
 }
 
 
 =head2 symlinks_dbm
 
 Opens the symlinks.dbm.zip file in the repository and
-returns a tied hash reference to that file.
+returns a tied hash reference to that file. Second
+return value is the file name.
 
-If the file does not exist, it returns undef.
+If the file does not exist, it returns the empty list.
 
 You should know what you are doing when you use this
 method.
@@ -182,25 +184,26 @@ sub symlinks_dbm {
 
 	my $file = PAR::Repository::DBM::SYMLINKS_DBM_FILE().'.zip';
 	
-	chdir($old_dir), return undef if not -f $file;
+	chdir($old_dir), return() if not -f $file;
 
 	my ($hash, $tempfile) = $self->_open_dbm($file);
-	chdir($old_dir), return undef if not defined $hash;
+	chdir($old_dir), return() if not defined $hash;
 
 	$self->{symlinks_dbm_hash} = $hash;
 	$self->{symlinks_dbm_temp_file} = $tempfile;
 
 	chdir($old_dir);
 	
-	return $hash;
+	return($hash, $tempfile);
 }
 
 =head2 scripts_dbm
 
 Opens the scripts_dists.dbm.zip file in the repository and
-returns a tied hash reference to that file.
+returns a tied hash reference to that file. Second return value is
+the file name.
 
-If the file does not exist, it returns undef.
+If the file does not exist, it returns the empty list.
 
 You should know what you are doing when you use this
 method.
@@ -218,17 +221,17 @@ sub scripts_dbm {
 	my $old_dir = Cwd::cwd();
 	chdir($self->{path});
 	my $file = PAR::Repository::DBM::SCRIPTS_DBM_FILE().'.zip';
-	chdir($old_dir), return undef if not -f $file;
+	chdir($old_dir), return() if not -f $file;
 
 	my ($hash, $tempfile) = $self->_open_dbm($file);
-	chdir($old_dir), return undef if not defined $hash;
+	chdir($old_dir), return() if not defined $hash;
 
 	$self->{scripts_dbm_hash} = $hash;
 	$self->{scripts_dbm_temp_file} = $tempfile;
 
 	chdir($old_dir);
 
-	return $hash;
+	return($hash, $tempfile);
 }
 
 

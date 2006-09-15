@@ -1,7 +1,7 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         PAR-Repository
-version:      0.12
+version:      0.13
 version_from: lib/PAR/Repository.pm
 installdirs:  site
 requires:
@@ -13,6 +13,7 @@ requires:
     File::Spec:                    0
     File::Temp:                    0
     PAR::Dist:                     0.18
+    PAR::Repository::Query:        0.12
     Pod::Text:                     0
     version:                       0.50
     YAML::Syck:                    0.62
