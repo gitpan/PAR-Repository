@@ -20,6 +20,7 @@ HERE
 WriteMakefile(
     NAME              => 'PAR::Repository',
     VERSION_FROM      => 'lib/PAR/Repository.pm', # finds $VERSION
+    LICENSE => 'perl',
     PREREQ_PM         => {
 #'perl'      => '5.6',
 		'DBM::Deep' => '0',

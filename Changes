@@ -1,5 +1,10 @@
 Revision history for Perl extension PAR::Repository.
 
+0.14     Sat Nov  4 22:47 2006
+    - Fixed a bug during injection.
+    - META.yml now conforms to spec. 1.20.
+    - Now including t/00podcover.t
+
 0.13     Fri Sep 15 10:50 2006
     - Broke out PAR::Repository::Query into its own distribution
       so that PAR::Repository and PAR::Repository::Client can share

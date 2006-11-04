@@ -24,7 +24,7 @@ use base qw/
 
 use constant REPOSITORY_INFO_FILE => 'repository_info.yml';
 
-our $VERSION = '0.13';
+our $VERSION = '0.14';
 our $VERBOSE = 0;
 
 # template for a repository_info.yml file
@@ -815,7 +815,7 @@ sub _add_packages {
 	my $packages = $args{packages};
 	my $target_file = $args{file};
 	
-	my $hash = $self->modules_dbm;
+	my ($hash, $temp_file) = $self->modules_dbm;
 	foreach my $pkg (keys %$packages) {
 		$hash->{$pkg} = {} if not exists $hash->{$pkg};
 		$hash->{$pkg}{$target_file} = $packages->{$pkg}{version};
