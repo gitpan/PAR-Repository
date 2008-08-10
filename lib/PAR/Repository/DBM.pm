@@ -7,12 +7,14 @@ use warnings;
 use Carp qw/croak/;
 use File::Spec::Functions qw/catfile splitpath/;
 use DBM::Deep;
+use Fcntl qw/:flock/;
+use File::Copy qw();
 
-our $VERSION = '0.03';
-use constant 'MODULES_DBM_FILE'  => 'modules_dists.dbm';
-use constant 'SYMLINKS_DBM_FILE' => 'symlinks.dbm';
-use constant 'SCRIPTS_DBM_FILE'  => 'scripts_dists.dbm';
-
+our $VERSION = '0.04';
+use constant 'MODULES_DBM_FILE'   => 'modules_dists.dbm';
+use constant 'SYMLINKS_DBM_FILE'  => 'symlinks.dbm';
+use constant 'SCRIPTS_DBM_FILE'   => 'scripts_dists.dbm';
+use constant 'DBM_CHECKSUMS_FILE' => 'dbm_checksums.txt';
 
 =head1 NAME
 
@@ -134,27 +136,27 @@ method.
 =cut
 
 sub modules_dbm {
-	my $self = shift;
-	$self->verbose(2, 'Entering modules_dbm()');
+  my $self = shift;
+  $self->verbose(2, 'Entering modules_dbm()');
 
-	if (defined $self->{modules_dbm_hash}) {
-		return $self->{modules_dbm_hash};
-	}
+  if (defined $self->{modules_dbm_hash}) {
+    return $self->{modules_dbm_hash};
+  }
 
-	my $old_dir = Cwd::cwd();
-	chdir($self->{path});
-	my $file = PAR::Repository::DBM::MODULES_DBM_FILE().'.zip';
-	chdir($old_dir), return() if not -f $file;
+  my $old_dir = Cwd::cwd();
+  chdir($self->{path});
+  my $file = PAR::Repository::DBM::MODULES_DBM_FILE().'.zip';
+  chdir($old_dir), return() if not -f $file;
 
-	my ($hash, $tempfile) = $self->_open_dbm($file);
-	chdir($old_dir), return() if not defined $hash;
+  my ($hash, $tempfile) = $self->_open_dbm($file);
+  chdir($old_dir), return() if not defined $hash;
 
-	$self->{modules_dbm_hash} = $hash;
-	$self->{modules_dbm_temp_file} = $tempfile;
+  $self->{modules_dbm_hash} = $hash;
+  $self->{modules_dbm_temp_file} = $tempfile;
 
-	chdir($old_dir);
+  chdir($old_dir);
 
-	return ($hash, $tempfile);
+  return ($hash, $tempfile);
 }
 
 
@@ -172,29 +174,29 @@ method.
 =cut
 
 sub symlinks_dbm {
-	my $self = shift;
-	$self->verbose(2, 'Entering symlinks_dbm()');
+  my $self = shift;
+  $self->verbose(2, 'Entering symlinks_dbm()');
 
-	if (defined $self->{symlinks_dbm_hash}) {
-		return $self->{symlinks_dbm_hash};
-	}
+  if (defined $self->{symlinks_dbm_hash}) {
+    return $self->{symlinks_dbm_hash};
+  }
 
-	my $old_dir = Cwd::cwd();
-	chdir($self->{path});
+  my $old_dir = Cwd::cwd();
+  chdir($self->{path});
 
-	my $file = PAR::Repository::DBM::SYMLINKS_DBM_FILE().'.zip';
-	
-	chdir($old_dir), return() if not -f $file;
+  my $file = PAR::Repository::DBM::SYMLINKS_DBM_FILE().'.zip';
 
-	my ($hash, $tempfile) = $self->_open_dbm($file);
-	chdir($old_dir), return() if not defined $hash;
+  chdir($old_dir), return() if not -f $file;
 
-	$self->{symlinks_dbm_hash} = $hash;
-	$self->{symlinks_dbm_temp_file} = $tempfile;
+  my ($hash, $tempfile) = $self->_open_dbm($file);
+  chdir($old_dir), return() if not defined $hash;
 
-	chdir($old_dir);
-	
-	return($hash, $tempfile);
+  $self->{symlinks_dbm_hash} = $hash;
+  $self->{symlinks_dbm_temp_file} = $tempfile;
+
+  chdir($old_dir);
+
+  return($hash, $tempfile);
 }
 
 =head2 scripts_dbm
@@ -211,27 +213,27 @@ method.
 =cut
 
 sub scripts_dbm {
-	my $self = shift;
-	$self->verbose(2, 'Entering scripts_dbm()');
+  my $self = shift;
+  $self->verbose(2, 'Entering scripts_dbm()');
 
-	if (defined $self->{scripts_dbm_hash}) {
-		return $self->{scripts_dbm_hash};
-	}
+  if (defined $self->{scripts_dbm_hash}) {
+    return $self->{scripts_dbm_hash};
+  }
 
-	my $old_dir = Cwd::cwd();
-	chdir($self->{path});
-	my $file = PAR::Repository::DBM::SCRIPTS_DBM_FILE().'.zip';
-	chdir($old_dir), return() if not -f $file;
+  my $old_dir = Cwd::cwd();
+  chdir($self->{path});
+  my $file = PAR::Repository::DBM::SCRIPTS_DBM_FILE().'.zip';
+  chdir($old_dir), return() if not -f $file;
 
-	my ($hash, $tempfile) = $self->_open_dbm($file);
-	chdir($old_dir), return() if not defined $hash;
+  my ($hash, $tempfile) = $self->_open_dbm($file);
+  chdir($old_dir), return() if not defined $hash;
 
-	$self->{scripts_dbm_hash} = $hash;
-	$self->{scripts_dbm_temp_file} = $tempfile;
+  $self->{scripts_dbm_hash} = $hash;
+  $self->{scripts_dbm_temp_file} = $tempfile;
 
-	chdir($old_dir);
+  chdir($old_dir);
 
-	return($hash, $tempfile);
+  return($hash, $tempfile);
 }
 
 
@@ -246,26 +248,26 @@ This is called when the object is destroyed.
 =cut
 
 sub close_modules_dbm {
-	my $self = shift;
-	$self->verbose(2, 'Entering close_modules_dbm()');
-	my $hash = $self->{modules_dbm_hash};
-	return if not defined $hash;
+  my $self = shift;
+  $self->verbose(2, 'Entering close_modules_dbm()');
+  my $hash = $self->{modules_dbm_hash};
+  return if not defined $hash;
 
-	my $obj = tied($hash);
-	$self->{modules_dbm_hash} = undef;
-	undef $hash;
-	undef $obj;
-	
-	$self->_zip_file(
-		$self->{modules_dbm_temp_file},
-		catfile($self->{path}, PAR::Repository::DBM::MODULES_DBM_FILE().'.zip'),
-		PAR::Repository::DBM::MODULES_DBM_FILE()
-	);
+  my $obj = tied($hash);
+  $self->{modules_dbm_hash} = undef;
+  undef $hash;
+  undef $obj;
 
-	unlink $self->{modules_dbm_temp_file};
-	$self->{modules_dbm_temp_file} = undef;
+  $self->_zip_file(
+      $self->{modules_dbm_temp_file},
+      catfile($self->{path}, PAR::Repository::DBM::MODULES_DBM_FILE().'.zip'),
+      PAR::Repository::DBM::MODULES_DBM_FILE(),
+  );
 
-	return 1;
+  unlink $self->{modules_dbm_temp_file};
+  $self->{modules_dbm_temp_file} = undef;
+
+  return 1;
 }
 
 
@@ -279,26 +281,26 @@ Also called on object destruction.
 =cut
 
 sub close_symlinks_dbm {
-	my $self = shift;
-	$self->verbose(2, 'Entering close_symlinks_dbm()');
-	my $hash = $self->{symlinks_dbm_hash};
-	return if not defined $hash;
+  my $self = shift;
+  $self->verbose(2, 'Entering close_symlinks_dbm()');
+  my $hash = $self->{symlinks_dbm_hash};
+  return if not defined $hash;
 
-	my $obj = tied($hash);
-	$self->{symlinks_dbm_hash} = undef;
-	undef $hash;
-	undef $obj;
-	
-	$self->_zip_file(
-		$self->{symlinks_dbm_temp_file},
-		catfile($self->{path}, PAR::Repository::DBM::SYMLINKS_DBM_FILE().'.zip'),
-		PAR::Repository::DBM::SYMLINKS_DBM_FILE(),
-	);
+  my $obj = tied($hash);
+  $self->{symlinks_dbm_hash} = undef;
+  undef $hash;
+  undef $obj;
 
-	unlink $self->{symlinks_dbm_temp_file};
-	$self->{symlinks_dbm_temp_file} = undef;
+  $self->_zip_file(
+      $self->{symlinks_dbm_temp_file},
+      catfile($self->{path}, PAR::Repository::DBM::SYMLINKS_DBM_FILE().'.zip'),
+      PAR::Repository::DBM::SYMLINKS_DBM_FILE(),
+  );
 
-	return 1;
+  unlink $self->{symlinks_dbm_temp_file};
+  $self->{symlinks_dbm_temp_file} = undef;
+
+  return 1;
 }
 
 =head2 close_scripts_dbm
@@ -312,27 +314,88 @@ This is called when the object is destroyed.
 =cut
 
 sub close_scripts_dbm {
-	my $self = shift;
-	$self->verbose(2, 'Entering close_scripts_dbm()');
-	my $hash = $self->{scripts_dbm_hash};
-	return if not defined $hash;
+  my $self = shift;
+  $self->verbose(2, 'Entering close_scripts_dbm()');
+  my $hash = $self->{scripts_dbm_hash};
+  return if not defined $hash;
 
-	my $obj = tied($hash);
-	$self->{scripts_dbm_hash} = undef;
-	undef $hash;
-	undef $obj;
-	
-	$self->_zip_file(
-		$self->{scripts_dbm_temp_file},
-		catfile($self->{path}, PAR::Repository::DBM::SCRIPTS_DBM_FILE().'.zip'),
-		PAR::Repository::DBM::SCRIPTS_DBM_FILE()
-	);
+  my $obj = tied($hash);
+  $self->{scripts_dbm_hash} = undef;
+  undef $hash;
+  undef $obj;
 
-	unlink $self->{scripts_dbm_temp_file};
-	$self->{scripts_dbm_temp_file} = undef;
+  $self->_zip_file(
+      $self->{scripts_dbm_temp_file},
+      catfile($self->{path}, PAR::Repository::DBM::SCRIPTS_DBM_FILE().'.zip'),
+      PAR::Repository::DBM::SCRIPTS_DBM_FILE()
+  );
 
-	return 1;
+  unlink $self->{scripts_dbm_temp_file};
+  $self->{scripts_dbm_temp_file} = undef;
+
+  return 1;
 }
+
+
+=head2 update_dbm_checksums
+
+Updates the DBM checksums file C<dbm_checksums.txt> with the
+checksums of the currently existing zipped DBM files.
+
+This is called when the L<PAR::Repository> object is destroyed.
+
+=cut
+
+sub update_dbm_checksums {
+  my $self = shift;
+  $self->verbose(2, 'Entering update_dbm_checksums()');
+
+  # find a working base64 MD5 implementation
+  my $md5_function;
+  eval { require Digest::MD5; $md5_function = \&Digest::MD5::md5_base64; };
+  eval { require Digest::MD5::Perl;  $md5_function = \&Digest::MD5::Perl::md5_base64; } if $@;
+  if ($@) {
+    die "Could load neither Digest::MD5 nor Digest::MD5::Perl. Please upgrade your perl or install either of those modules.";
+  }
+  
+  # Prepare temporary copy of the checkums file
+  my ($tempfh, $tempfile) = File::Temp::tempfile(
+      'temporary_dbm_checksum_XXXXX',
+      UNLINK => 0,
+      DIR    => File::Spec->tmpdir(),
+  );
+  print $tempfh <<'HERE';
+# This checksums file has the format
+# FILENAME BASE64_MD5_HASH
+# where the file name and the MD5 hash are separated
+# by a TAB character, not arbitrary whitespace!
+# Hashes introduce comment lines.
+HERE
+
+  # calculate hashes and write them to the temp file
+  foreach my $dbmfile (
+      PAR::Repository::DBM::MODULES_DBM_FILE(),
+      PAR::Repository::DBM::SCRIPTS_DBM_FILE(),
+      PAR::Repository::DBM::SYMLINKS_DBM_FILE(),
+    ) {
+    my $filepath = catfile($self->{path}, $dbmfile.'.zip');
+    open my $fh, '<', $filepath or die "Could not open DBM file '$filepath' for reading: $!";
+    flock $fh, LOCK_SH;
+    local $/ = undef;
+    my $hash = $md5_function->(<$fh>);
+    close $fh;
+    print $tempfh "$dbmfile.zip\t$hash\n";
+  } # end foreach dbm files
+
+  close $tempfh;
+  # move temp file to destination
+  my $target_file = catfile($self->{path}, PAR::Repository::DBM::DBM_CHECKSUMS_FILE());
+  File::Copy::move($tempfile, $target_file)
+    or die "Could not move checksums file '$tempfile' to '$target_file': $!";
+
+  return 1;
+}
+
 
 =head2 _open_dbm
 
@@ -343,24 +406,24 @@ This is B<only for internal use>.
 =cut
 
 sub _open_dbm {
-	my $self = shift;
-	$self->verbose(2, 'Entering _open_dbm()');
-	my $file = shift;
-	my ($tempfh, $tempfile) = File::Temp::tempfile(
-		'temporary_dbm_XXXXX',
-		UNLINK => 0,
-		DIR => File::Spec->tmpdir(),
-	);
-	my ($v, $p, $f) = splitpath($file);
-	$f =~ s/\.zip$//;
-	$self->_unzip_file($file, $tempfile, $f) or return undef;
-	my %hash;
-    my $obj = tie %hash, "DBM::Deep", {
-		file => $tempfile,
-		locking => 1,
-	}; 
+  my $self = shift;
+  $self->verbose(2, 'Entering _open_dbm()');
+  my $file = shift;
+  my ($tempfh, $tempfile) = File::Temp::tempfile(
+      'temporary_dbm_XXXXX',
+      UNLINK => 0,
+      DIR    => File::Spec->tmpdir(),
+  );
+  my ($v, $p, $f) = splitpath($file);
+  $f =~ s/\.zip$//;
+  $self->_unzip_file($file, $tempfile, $f) or return undef;
+  my %hash;
+  my $obj = tie %hash, "DBM::Deep", {
+    file    => $tempfile,
+    locking => 1,
+  }; 
 
-	return (\%hash, $tempfile);
+  return (\%hash, $tempfile);
 }
 
 
@@ -373,7 +436,7 @@ Steffen Müller, E<lt>smueller@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2006 by Steffen Müller
+Copyright 2006-2008 by Steffen Müller
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.6 or,

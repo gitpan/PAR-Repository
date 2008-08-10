@@ -1,5 +1,10 @@
 Revision history for Perl extension PAR::Repository.
 
+0.15     Sun Aug 10 11:48 2008
+    - Properly close scripts dbm on DESTROY.
+    - Calculate DBM checkums.
+    - Require DBM::Deep 1.0012: No more XS dependency.
+
 0.14     Sat Nov  4 22:47 2006
     - Fixed a bug during injection.
     - META.yml now conforms to spec. 1.20.

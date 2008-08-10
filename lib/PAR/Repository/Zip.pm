@@ -12,7 +12,7 @@ use File::Temp;
 #require ExtUtils::MM;
 use Archive::Zip;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 =head1 NAME
 
@@ -59,18 +59,19 @@ the directory name. Returns the empty list on failure.
 =cut
 
 sub _unzip_dist_to_path {
-	my $self = shift;
-	$self->verbose(2, "Entering _unzip_to_path()");
-    my $dist = shift;
-    my $path = shift || File::Spec->curdir;
-    return unless -f $dist;
+  my $self = shift;
+  $self->verbose(2, "Entering _unzip_to_path()");
+  my $dist = shift;
+  my $path = shift || File::Spec->curdir;
+  return unless -f $dist;
 
-    my $zip = Archive::Zip->new;
-    local %SIG;
-    $SIG{__WARN__} = sub { print STDERR $_[0] unless $_[0] =~ /\bstat\b/ };
-    return unless $zip->read($dist) == Archive::Zip::AZ_OK()
-              and $zip->extractTree('', "$path/") == Archive::Zip::AZ_OK();
-    return $path;
+  my $zip = Archive::Zip->new;
+  local %SIG;
+  $SIG{__WARN__} = sub { print STDERR $_[0] unless $_[0] =~ /\bstat\b/ };
+  return
+    unless $zip->read($dist) == Archive::Zip::AZ_OK()
+           and $zip->extractTree('', "$path/") == Archive::Zip::AZ_OK();
+  return $path;
 }
 
 =head2 _unzip_dist_to_tmpdir
@@ -83,10 +84,10 @@ C<blib/> sub directories.
 =cut
 
 sub _unzip_dist_to_tmpdir {
-	my $self = shift;
-	$self->verbose(2, "Entering _unzip_dist_to_tmpdir()");
+        my $self = shift;
+        $self->verbose(2, "Entering _unzip_dist_to_tmpdir()");
     my $dist   = File::Spec->rel2abs(shift);
-	my $subdir = shift;
+        my $subdir = shift;
     my $tmpdir = File::Temp::mkdtemp(File::Spec->catdir(File::Spec->tmpdir, "parXXXXX")) or die $!;
     my $path = $tmpdir;
     $path = File::Spec->catdir($tmpdir, $subdir) if defined $subdir;
@@ -111,19 +112,19 @@ Optional third argument is the zip member name to use.
 =cut
 
 sub _zip_file {
-	my $class = shift;
-	my $file = shift;
-	return unless -f $file;
-	my $target = shift;
-	my $member = shift;
-	$member = $file if not defined $member;
-	$target = $file.'.zip' if not defined $target;
+        my $class = shift;
+        my $file = shift;
+        return unless -f $file;
+        my $target = shift;
+        my $member = shift;
+        $member = $file if not defined $member;
+        $target = $file.'.zip' if not defined $target;
 
-	my $zip = Archive::Zip->new;
+        my $zip = Archive::Zip->new;
     $zip->addFile( $file, $member );
     $zip->writeToFileNamed( $target ) == Archive::Zip::AZ_OK() or die $!;
     
-	return $target;
+        return $target;
 }
 
 =head2 _unzip_file
@@ -139,21 +140,21 @@ Returns the name of the unzipped file.
 =cut
 
 sub _unzip_file {
-	my $class = shift;
-	my $file = shift;
-	my $target = shift;
-	my $member = shift;
-	$member = $target if not defined $member;
-	return unless -f $file;
+        my $class = shift;
+        my $file = shift;
+        my $target = shift;
+        my $member = shift;
+        $member = $target if not defined $member;
+        return unless -f $file;
 
     my $zip = Archive::Zip->new;
-	local %SIG;
-	$SIG{__WARN__} = sub { print STDERR $_[0] unless $_[0] =~ /\bstat\b/ };
-	
+        local %SIG;
+        $SIG{__WARN__} = sub { print STDERR $_[0] unless $_[0] =~ /\bstat\b/ };
+        
     return unless $zip->read($file) == Archive::Zip::AZ_OK()
            and $zip->extractMember($member, $target) == Archive::Zip::AZ_OK();
 
-	return $target;
+        return $target;
 }
 
 
@@ -167,7 +168,7 @@ Steffen Müller, E<lt>smueller@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2006 by Steffen Müller
+Copyright 2006-2008 by Steffen Müller
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.6 or,
