@@ -1,11 +1,11 @@
 --- #YAML:1.0
 name:                PAR-Repository
-version:             0.15
+version:             0.16
 abstract:            Create and modify PAR repositories
 license:             perl
 author:              
     - Steffen Müller <smueller@cpan.org>
-generated_by:        ExtUtils::MakeMaker version 6.42
+generated_by:        ExtUtils::MakeMaker version 6.44
 distribution_type:   module
 requires:     
     Archive::Zip:                  0
@@ -17,6 +17,7 @@ requires:
     File::Spec:                    0
     File::Temp:                    0
     PAR::Dist:                     0.31
+    PAR::Indexer:                  0.90
     PAR::Repository::Query:        0.12
     Pod::Text:                     0
     version:                       0.50

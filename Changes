@@ -1,5 +1,16 @@
 Revision history for Perl extension PAR::Repository.
 
+0.16     Thu Sep  4 16:21 2008
+    - Fix the documentation in ::DBM on the symlinks database.
+    - Fix the name of the env. variable for disabling the
+      no-symlinks warning on installation. (Cosimo Streppone)
+    - Removed the PAR::Repository::ScanPAR module and use the
+      PAR::Indexer module from CPAN instead. PAR::Indexer
+      is essentially just PAR::Repository::ScanPAR, but usable
+      by other distributions.
+    - Fixed fallback to Digest::Perl::MD5
+    - Finally add some meaningful tests.
+
 0.15     Sun Aug 10 11:48 2008
     - Properly close scripts dbm on DESTROY.
     - Calculate DBM checkums.

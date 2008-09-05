@@ -12,7 +12,7 @@ use File::Temp;
 #require ExtUtils::MM;
 use Archive::Zip;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 =head1 NAME
 
@@ -84,17 +84,17 @@ C<blib/> sub directories.
 =cut
 
 sub _unzip_dist_to_tmpdir {
-        my $self = shift;
-        $self->verbose(2, "Entering _unzip_dist_to_tmpdir()");
-    my $dist   = File::Spec->rel2abs(shift);
-        my $subdir = shift;
-    my $tmpdir = File::Temp::mkdtemp(File::Spec->catdir(File::Spec->tmpdir, "parXXXXX")) or die $!;
-    my $path = $tmpdir;
-    $path = File::Spec->catdir($tmpdir, $subdir) if defined $subdir;
-    $self->_unzip_dist_to_path($dist, $path);
+  my $self = shift;
+  $self->verbose(2, "Entering _unzip_dist_to_tmpdir()");
+  my $dist   = File::Spec->rel2abs(shift);
+  my $subdir = shift;
+  my $tmpdir = File::Temp::mkdtemp(File::Spec->catdir(File::Spec->tmpdir, "parXXXXX")) or die $!;
+  my $path = $tmpdir;
+  $path = File::Spec->catdir($tmpdir, $subdir) if defined $subdir;
+  $self->_unzip_dist_to_path($dist, $path);
 
-    chdir $tmpdir;
-    return ($dist, $tmpdir);
+  chdir $tmpdir;
+  return ($dist, $tmpdir);
 }
 
 =head2 _zip_file
@@ -112,19 +112,20 @@ Optional third argument is the zip member name to use.
 =cut
 
 sub _zip_file {
-        my $class = shift;
-        my $file = shift;
-        return unless -f $file;
-        my $target = shift;
-        my $member = shift;
-        $member = $file if not defined $member;
-        $target = $file.'.zip' if not defined $target;
+  my $class = shift;
+  my $file = shift;
+  return unless -f $file;
+  my $target = shift;
+  my $member_name = shift;
+  $member_name = $file if not defined $member_name;
+  $target = $file.'.zip' if not defined $target;
 
-        my $zip = Archive::Zip->new;
-    $zip->addFile( $file, $member );
-    $zip->writeToFileNamed( $target ) == Archive::Zip::AZ_OK() or die $!;
-    
-        return $target;
+  my $zip = Archive::Zip->new;
+  my $member = $zip->addFile( $file, $member_name );
+  $member->desiredCompressionLevel( Archive::Zip::COMPRESSION_LEVEL_BEST_COMPRESSION() );
+  $zip->writeToFileNamed( $target ) == Archive::Zip::AZ_OK() or die $!;
+  
+  return $target;
 }
 
 =head2 _unzip_file
@@ -140,21 +141,21 @@ Returns the name of the unzipped file.
 =cut
 
 sub _unzip_file {
-        my $class = shift;
-        my $file = shift;
-        my $target = shift;
-        my $member = shift;
-        $member = $target if not defined $member;
-        return unless -f $file;
+  my $class = shift;
+  my $file = shift;
+  my $target = shift;
+  my $member = shift;
+  $member = $target if not defined $member;
+  return unless -f $file;
 
-    my $zip = Archive::Zip->new;
-        local %SIG;
-        $SIG{__WARN__} = sub { print STDERR $_[0] unless $_[0] =~ /\bstat\b/ };
-        
-    return unless $zip->read($file) == Archive::Zip::AZ_OK()
-           and $zip->extractMember($member, $target) == Archive::Zip::AZ_OK();
+  my $zip = Archive::Zip->new;
+  local %SIG;
+  $SIG{__WARN__} = sub { print STDERR $_[0] unless $_[0] =~ /\bstat\b/ };
+      
+  return unless $zip->read($file) == Archive::Zip::AZ_OK()
+         and $zip->extractMember($member, $target) == Archive::Zip::AZ_OK();
 
-        return $target;
+  return $target;
 }
 
 

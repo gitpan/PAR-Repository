@@ -12,7 +12,7 @@ be created.
 
 If you want to ignore this message and continue installing
 PAR::Reporitory, please set the environment variable
-IGNORE_SYMLINK_WARNING to a true valid and rerun Makefile.PL.
+IGNORE_SYMLINK_WARNINGS to a true valid and rerun Makefile.PL.
 HERE
     exit(1);
 }
@@ -35,6 +35,7 @@ WriteMakefile(
         'Pod::Text' => '0',
         'ExtUtils::Manifest' => '0',
         'PAR::Repository::Query' => '0.12',
+        'PAR::Indexer' => '0.90',
         'Digest::MD5' => '0',
     }, # e.g., Module::Name => 1.1
     EXE_FILES => [

@@ -14,17 +14,17 @@ use Cwd qw//;
 use Archive::Zip qw//;
 use File::Temp qw//;
 use version qw//;
+use PAR::Indexer qw//;
 
 use base qw/
     PAR::Repository::Zip
     PAR::Repository::DBM
-    PAR::Repository::ScanPAR
     PAR::Repository::Query
 /;
 
 use constant REPOSITORY_INFO_FILE => 'repository_info.yml';
 
-our $VERSION = '0.15';
+our $VERSION = '0.16';
 our $VERBOSE = 0;
 
 # template for a repository_info.yml file
@@ -35,6 +35,7 @@ our $Info_Template = {
 # Hash of compatible PAR::Repository versions
 our $Compatible_Versions = {
     $VERSION => 1,
+    '0.15' => 1,
     '0.14' => 1,
     '0.13' => 1,
     '0.12' => 1,
@@ -216,9 +217,9 @@ sub new {
   $self->verbose(2, "Created new repository object in path '$path'");
 
   # check that the repository exists or create it.	
-  my $mod_dbm = catfile($path, PAR::Repository::DBM::MODULES_DBM_FILE());
-  my $sym_dbm = catfile($path, PAR::Repository::DBM::SYMLINKS_DBM_FILE());
-  my $scr_dbm = catfile($path, PAR::Repository::DBM::SCRIPTS_DBM_FILE());
+  my $mod_dbm   = catfile($path, PAR::Repository::DBM::MODULES_DBM_FILE());
+  my $sym_dbm   = catfile($path, PAR::Repository::DBM::SYMLINKS_DBM_FILE());
+  my $scr_dbm   = catfile($path, PAR::Repository::DBM::SCRIPTS_DBM_FILE());
   my $info_file = catfile($path, PAR::Repository::REPOSITORY_INFO_FILE());
   if (-d $path
       and -f $mod_dbm.'.zip' and -f $sym_dbm.'.zip'
@@ -240,11 +241,8 @@ sub new {
     elsif ( $Compatible_Versions->{$self->{info}{repository_version}} eq '0.03' ) {
       $self->_update_info_version or return ();
       $self->verbose(3, "Updated repository version");
-      $self->verbose(3, "Opened repository successfully");
     }
-    else {
-      $self->verbose(3, "Opened repository successfully");
-    }
+    $self->verbose(3, "Opened repository successfully");
 
     # Generate scripts db and upgrade repository version
     # if the scripts db doesn't exist.
@@ -259,36 +257,50 @@ sub new {
 
   } # end if everything is in place
   else {
-    # create it.
     $self->verbose(3, "Repository doesn't exist yet");
-    if (-d $path) {
-      croak("The repository path exists, but is not a repository. Delete it to create a new repository.");
-    }
-    mkpath([$path]);
-    {
-      my $mod_db = DBM::Deep->new($mod_dbm);
-      my $sym_db = DBM::Deep->new($sym_dbm);
-      my $scr_db = DBM::Deep->new($scr_dbm);
-    }
-
-    $self->verbose(3, "Creating repository databases");
-    my ($vol, $path, $file) = splitpath($mod_dbm);
-    $self->_zip_file($mod_dbm, $mod_dbm.'.zip', $file);
-    unlink($mod_dbm);
-    ($vol, $path, $file) = splitpath($sym_dbm);
-    $self->_zip_file($sym_dbm, $sym_dbm.'.zip', $file);
-    unlink($sym_dbm);
-    ($vol, $path, $file) = splitpath($scr_dbm);
-    $self->_zip_file($scr_dbm, $scr_dbm.'.zip', $file);
-    unlink($scr_dbm);
-
-    YAML::Syck::DumpFile($info_file, $Info_Template);
-    $self->{info} = YAML::Syck::LoadFile($info_file);
+    $self->_create_repository($path);
   }
+
   return $self;
 }
 
+# creates a new repository
+# called by the constructor if the directory doesn't exist
+sub _create_repository {
+  my $self = shift;
+  my $path = shift;
 
+  if (-d $path) {
+    croak("The repository path exists, but is not a repository. Delete it to create a new repository.");
+  }
+  mkpath([$path]);
+
+  my $mod_dbm   = catfile($path, PAR::Repository::DBM::MODULES_DBM_FILE());
+  my $sym_dbm   = catfile($path, PAR::Repository::DBM::SYMLINKS_DBM_FILE());
+  my $scr_dbm   = catfile($path, PAR::Repository::DBM::SCRIPTS_DBM_FILE());
+  my $info_file = catfile($path, PAR::Repository::REPOSITORY_INFO_FILE());
+
+  # create pristine dbm files
+  {
+    my $mod_db = DBM::Deep->new($mod_dbm);
+    my $sym_db = DBM::Deep->new($sym_dbm);
+    my $scr_db = DBM::Deep->new($scr_dbm);
+  }
+
+  $self->verbose(3, "Creating repository databases");
+  (undef, undef, my $file) = splitpath($mod_dbm);
+  $self->_zip_file($mod_dbm, $mod_dbm.'.zip', $file);
+  unlink($mod_dbm);
+  (undef, undef, $file) = splitpath($sym_dbm);
+  $self->_zip_file($sym_dbm, $sym_dbm.'.zip', $file);
+  unlink($sym_dbm);
+  (undef, undef, $file) = splitpath($scr_dbm);
+  $self->_zip_file($scr_dbm, $scr_dbm.'.zip', $file);
+  unlink($scr_dbm);
+
+  YAML::Syck::DumpFile($info_file, $Info_Template);
+  $self->{info} = YAML::Syck::LoadFile($info_file);
+}
 =head2 inject
 
 Injects a new PAR distribution into the repository. Takes named parameters.
@@ -422,7 +434,7 @@ sub inject {
   else {
     # we need to do the scanning ourselves (damn)
     $self->verbose(3, "Need to scan for .pm files");
-    $packages = $self->scan_par_for_packages($dfile);
+    $packages = PAR::Indexer::scan_par_for_packages($dfile);
   }
 
   if (not defined $packages) {
@@ -434,7 +446,7 @@ sub inject {
   my $scripts;
   if (not $args{no_scripts}) {
     $self->verbose(3, "Scanning par for scripts");
-    $scripts = $self->scan_par_for_scripts($dfile);
+    $scripts = PAR::Indexer::scan_par_for_scripts($dfile);
   }
 
   # create path in repository
@@ -1094,12 +1106,14 @@ __END__
 
 This module inherits from L<PAR::Repository::DBM>,
 L<PAR::Repository::Zip>, L<PAR::Repository::Query>,
-L<PAR::Repository::ScanPAR>
 
 This module is directly related to the C<PAR> project. You need to have
 basic familiarity with it.
 
 See L<PAR>, L<PAR::Dist>, etc.
+
+L<PAR::Indexer> does the indexing of the contents of a F<.par> file.
+The code used to be part of this distribution as C<PAR::Repository::ScanPAR>.
 
 L<PAR::WebStart> is doing something similar but is otherwise unrelated.
 

@@ -2,13 +2,17 @@ bin/parrepo
 Changes
 lib/PAR/Repository.pm
 lib/PAR/Repository/DBM.pm
-lib/PAR/Repository/ScanPAR.pm
 lib/PAR/Repository/Zip.pm
 Makefile.PL
 MANIFEST			This list of files
 README
 t/00pod.t
 t/00podcover.t
-t/01basic.t
+t/01use.t
+t/02create.t
+t/03inject.t
+t/04md5perl.t
+t/data/Test-Kit-0.02-any_arch-any_version.par
+t/lib/RepoTest.pm
 TODO
 META.yml                                 Module meta-data (added by MakeMaker)

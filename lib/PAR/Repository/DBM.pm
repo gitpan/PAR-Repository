@@ -10,7 +10,7 @@ use DBM::Deep;
 use Fcntl qw/:flock/;
 use File::Copy qw();
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 use constant 'MODULES_DBM_FILE'   => 'modules_dists.dbm';
 use constant 'SYMLINKS_DBM_FILE'  => 'symlinks.dbm';
 use constant 'SCRIPTS_DBM_FILE'   => 'scripts_dists.dbm';
@@ -78,8 +78,10 @@ separately indicated.
 
 The DBM file is a hash at top level.
 
-It associates symlinks (keys) with a number of actual distribution files.
-The values of the top level hash are arrays of distribution file names.
+It associates real files in the repository (keys) with a number of
+symbolic links.
+The values of the top level hash are arrays of distribution file names
+which are symlinks.
 Note that unlike the modules dbm, filenames always include in-repository
 paths.
 
@@ -97,6 +99,9 @@ Example: (with some extra linebreaks to keep the text width down)
              any_arch-any_version.par'
           ],
   }
+
+In the example, the first file is the real file and the paths/file names
+in the value array are the names of the symbolic links.
 
 =head2 SCRIPTS-DISTS DBM
 
@@ -353,9 +358,9 @@ sub update_dbm_checksums {
   # find a working base64 MD5 implementation
   my $md5_function;
   eval { require Digest::MD5; $md5_function = \&Digest::MD5::md5_base64; };
-  eval { require Digest::MD5::Perl;  $md5_function = \&Digest::MD5::Perl::md5_base64; } if $@;
+  eval { require Digest::Perl::MD5;  $md5_function = \&Digest::Perl::MD5::md5_base64; } if $@;
   if ($@) {
-    die "Could load neither Digest::MD5 nor Digest::MD5::Perl. Please upgrade your perl or install either of those modules.";
+    die "Could load neither Digest::MD5 nor Digest::Perl::MD5. Please upgrade your perl or install either of those modules.";
   }
   
   # Prepare temporary copy of the checkums file
