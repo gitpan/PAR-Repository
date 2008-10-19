@@ -16,25 +16,37 @@ use File::Temp qw//;
 use version qw//;
 use PAR::Indexer qw//;
 
-use base qw/
-    PAR::Repository::Zip
-    PAR::Repository::DBM
-    PAR::Repository::Query
-/;
+use PAR::Repository::Zip;
+use PAR::Repository::DBM;
+use PAR::Repository::Query;
+our @ISA = qw(
+  PAR::Repository::Zip
+  PAR::Repository::DBM
+  PAR::Repository::Query
+);
 
 use constant REPOSITORY_INFO_FILE => 'repository_info.yml';
 
-our $VERSION = '0.16';
+our $VERSION = '0.16_01';
 our $VERBOSE = 0;
+
+# does the running platform have symlinks?
+our $Supports_Symlinks =
+  exists($ENV{PAR_REPOSITORY_SYMLINK_SUPPORT})
+  ? $ENV{PAR_REPOSITORY_SYMLINK_SUPPORT}
+  : eval { symlink("",""); 1 };
 
 # template for a repository_info.yml file
 our $Info_Template = {
     repository_version => $VERSION,
+    # on platforms which don't have symlinks, fake them for new repositories!
+    ($Supports_Symlinks ? () : (fake_symlinks => 1)),
 };
 
 # Hash of compatible PAR::Repository versions
 our $Compatible_Versions = {
     $VERSION => 1,
+    '0.16' => 1,
     '0.15' => 1,
     '0.14' => 1,
     '0.13' => 1,
@@ -183,6 +195,21 @@ is created empty. If the repository exists, it is I<opened>.
 That means any modifications you apply to the repository object
 are applied to the I<opened> repository on disk.
 
+Optional parameters:
+
+Additionally, you may supply the C<fake_symlinks =E<gt> 1>
+or C<convert_symlinks =E<gt> 1> parameters. Both default to
+false. I<convert_symlinks> will convert an existing repository
+that uses symbolic links to using no symbolic links as if it
+had been created with the I<fake_symlinks> option.
+If the repository has to be created, I<fake_symlinks>
+flags it as using no symbolic links. Copies will be used instead.
+this may result is a larger but more portable repository.
+I<convert_symlinks> implies I<fake_symlinks>. See also I<CAVEATS> below.
+
+I<fake_symlinks> is the default for creating new repositories
+on platforms which do not support symlinks.
+
 =cut
 
 sub new {
@@ -242,6 +269,17 @@ sub new {
       $self->_update_info_version or return ();
       $self->verbose(3, "Updated repository version");
     }
+
+    if ($args{convert_symlinks}) {
+      $self->_convert_symlinks();
+    }
+
+    if (!$Supports_Symlinks and !$self->{info}{fake_symlinks}) {
+      croak("Repository may use symlinks but your platform does not support them. "
+           ."Use the convert_symlinks => 1 option to the PAR::Repository constructor "
+           ."to convert the repository to one which does not use symbolic links.");
+    }
+
     $self->verbose(3, "Opened repository successfully");
 
     # Generate scripts db and upgrade repository version
@@ -258,7 +296,7 @@ sub new {
   } # end if everything is in place
   else {
     $self->verbose(3, "Repository doesn't exist yet");
-    $self->_create_repository($path);
+    $self->_create_repository($path, !$Supports_Symlinks||$args{fake_symlinks});
   }
 
   return $self;
@@ -269,6 +307,7 @@ sub new {
 sub _create_repository {
   my $self = shift;
   my $path = shift;
+  my $fake_symlinks = shift;
 
   if (-d $path) {
     croak("The repository path exists, but is not a repository. Delete it to create a new repository.");
@@ -298,9 +337,50 @@ sub _create_repository {
   $self->_zip_file($scr_dbm, $scr_dbm.'.zip', $file);
   unlink($scr_dbm);
 
-  YAML::Syck::DumpFile($info_file, $Info_Template);
+  my $info_copy = {%$Info_Template};
+  $info_copy->{fake_symlinks} = 1 if $fake_symlinks;
+  YAML::Syck::DumpFile($info_file, $info_copy);
   $self->{info} = YAML::Syck::LoadFile($info_file);
 }
+
+# converts all symlinks to files, sets {info}->{fake_symlinks},
+# and saves it
+# called by the constructor
+sub _convert_symlinks {
+  my $self = shift;
+  $self->{error} = undef;
+  $self->verbose(1, "Converting symlinks to files!");
+
+  # change to repo path
+  my $old_dir = Cwd::cwd();
+  chdir($self->{path});
+
+  my $info_file = catfile($self->{path}, PAR::Repository::REPOSITORY_INFO_FILE());
+
+  my ($symdbm, $temp_file) = $self->symlinks_dbm;
+  while (my ($file, $symlinks) = each %$symdbm) {
+    my ($distname, $distver, $arch, $perlver) = PAR::Dist::parse_dist_name($file);
+    my $file_fullpath = File::Spec->catfile($arch, $perlver, $file);
+
+    foreach my $symlink_file (@$symlinks) {
+      my ($distname, $distver, $arch, $perlver) = PAR::Dist::parse_dist_name($symlink_file);
+      my $symlink_file_fullpath = File::Spec->catfile($arch, $perlver, $symlink_file);
+      # first unlink or else File::Copy may claim it can't copy because the files are
+      # the same.
+      (unlink( $symlink_file_fullpath ) and File::Copy::copy( $file_fullpath, $symlink_file_fullpath ))
+        or chdir($old_dir),
+        die "Error converting symlinks in repository to real files: Could not copy "
+           ."'$file' to '$symlink_file'. Your repository may be in an inconsistent "
+           ."state now. Reason: $!";
+    }
+  }
+  chdir($old_dir);
+
+  $self->{info}{fake_symlinks} = 1;
+  YAML::Syck::DumpFile($info_file, $self->{info});
+  return 1;
+}
+
 =head2 inject
 
 Injects a new PAR distribution into the repository. Takes named parameters.
@@ -457,18 +537,18 @@ sub inject {
   # copy file over
   my $target_in_rep   =  catfile($destpath, $target_file);
   my $complete_target =  catdir($self->{path}, $target_in_rep);
-  if (-f $complete_target) {
+  if (-f $complete_target or -l $complete_target) {
     # damn, we're overwriting an existing archive or symlink.
     if (not $args{overwrite}) {
       # don't overwrite
       $self->verbose(1, "Found existing file '$target_in_rep'. Not overwriting because 'overwrite' isn't set.");
       return undef;
     }
-    elsif (-l $complete_target) {
+    elsif ($self->_is_symlink($target_file, switch_to_path => 1)) {
       $self->verbose(1, "Found existing symlink '$target_in_rep'. Overwriting because 'overwrite' is set.");
       $self->_remove_symlink(sym => $target_in_rep);
     }
-    if ($args{overwrite}) {
+    else {
       $self->verbose(1, "Found existing file '$target_in_rep'. Overwriting because 'overwrite' is set.");
       $self->remove(file => $target_in_rep);
     }
@@ -543,6 +623,42 @@ sub inject {
   return 1;
 }
 
+# first argument is a path in the repository.
+# expects to be called from within the main repository path
+# or with the switch_to_path => 1 option.
+# returns a boolean indicating whether a file is a symlink or
+# not. Normally, this is just -l $file, but if fake_symlinks
+# is in effect, the file will be a real file and we have to
+# check the symlink dbm!
+sub _is_symlink {
+  my $self = shift;
+  my $file = shift;
+  $self->verbose(3, "entering _is_symlink('$file')");
+  my %args = @_;
+
+  my $old_dir = Cwd::cwd();
+  chdir($self->{path}) if $args{switch_to_path};
+
+  (undef, undef, $file) = File::Spec->splitpath($file);
+  (undef, undef, my $filearch, my $filepver) = PAR::Dist::parse_dist_name($file);
+
+  if ($self->{info}{fake_symlinks}) {
+    my ($symh) = $self->symlinks_dbm;
+    while (my ($dist, $symlinks) = each %$symh) {
+      # otherwise, things might potentially blow up with strange directory
+      # separators. This will need better consideration in the future.
+      chdir($old_dir), return 1 if grep { $file eq $_ } @$symlinks;
+    }
+    chdir($old_dir);
+    return();
+  }
+  else {
+    my $f = File::Spec->catfile($filearch, $filepver, $file);
+    my $link = -l $f;
+    chdir($old_dir);
+    return $link;
+  }
+}
 
 =head2 remove
 
@@ -636,7 +752,7 @@ sub remove {
   my $old_dir = Cwd::cwd();
   chdir($self->{path});
 
-  my $complete_target = catfile( catdir($arch, $perlver), $target_file );
+  my $complete_target = catfile( $arch, $perlver, $target_file );
 
   if (not -f $complete_target and not -l $complete_target) {
     # not in repo
@@ -644,7 +760,7 @@ sub remove {
     chdir($old_dir);
     return ();
   }
-  elsif (-l $complete_target) {
+  elsif ($self->_is_symlink($target_file)) {
     # target is a symlink, remove the link only.
     $self->verbose(1, "Target file is a symlink. Removing the symlink only");
     chdir($old_dir);
@@ -874,10 +990,10 @@ This is a private method.
 
 sub _add_symlink {
   my $self = shift;
-  $self->verbose(2, "Entering _add_symlink");
   my %args = @_;
   my $file = $args{file};
   my $sym = $args{sym};
+  $self->verbose(2, "Entering _add_symlink, adding symlink '$sym' to '$file'");
 
   # We do not want any user defined directories.
   # Why? Because they would end up in the database with
@@ -895,8 +1011,10 @@ sub _add_symlink {
 
   my $overwrite = $args{overwrite};
 
-  unless (eval {symlink("", ""); 1}) {
-    croak "Symlinks are not supported on this system!";
+  if (!$Supports_Symlinks and !$self->{info}{fake_symlinks}) {
+    croak("Symlinks are not supported on this system! Try creating a repository "
+         ."with the fake_symlinks option set or convert it by supplying the "
+         ."convert_symlinks => 1 option to the PAR::Repository constructor.");
   }
 
   # get the symlinks dbm while in the old path
@@ -905,22 +1023,26 @@ sub _add_symlink {
   my $old_dir = Cwd::cwd();
   chdir($self->{path});
 
-  # symlink exists
-  if ( -l $sym_full ) {
+  if ($self->_is_symlink($sym)) {
     $self->verbose(1, "Symlink '$sym' exists. Overwrite is set to ".($overwrite?1:0));
     chdir($old_dir), return undef if not $overwrite;
     $self->_remove_symlink(sym => $sym);
   }
-
-  # is a file
-  if (-f $sym_full and not -l $sym_full) {
+  elsif (-f $sym_full) {
     $self->verbose(1, "Symlink '$sym' is a file. Not overwriting");
-    chdir($old_dir), return undef;# if not $overwrite;
+    chdir($old_dir), return undef;
     # Files always take precedence over symlinks.
   }
 
-  symlink(catdir( File::Spec->updir, File::Spec->updir, $file_full ), $sym_full)
-    or die "Could not create symlink from (full repo paths) '$sym_full' to file '$file_full'";
+  if ($self->{info}{fake_symlinks}) {
+    $self->verbose(1, "fake_symlinks is set. Copying file instead of linking");
+    File::Copy::copy($file_full, $sym_full) or die $!;
+  }
+  else {
+    my $source_file = catfile( File::Spec->updir, File::Spec->updir, $file_full );
+    symlink($source_file, $sym_full)
+      or die "Could not create symlink from (full repo paths) '$sym_full' to file '$source_file'";
+  }
 
   $shash->{$file} = [] if not defined $shash->{$file};
   push @{$shash->{$file}}, $sym;
@@ -1005,6 +1127,7 @@ sub _remove_files_from_db {
 
 Removes a symlink from the repository.
 Parameters: C<sym => "full/path/in/repo">.
+Or: C<sym => "foo.par"> (omitting the path).
 
 This is a private method.
 
@@ -1024,9 +1147,8 @@ sub _remove_symlink {
 
   # get the directory in the repository.
   (undef, undef, my $symarch, my $sympver) = PAR::Dist::parse_dist_name($sym);
-  my $symdir  = catdir( $symarch, $sympver );
-  my $sym_full  = catfile( $symdir, $sym );
-
+  my $symdir   = catdir( $symarch, $sympver );
+  my $sym_full = catfile( $symdir, $sym );
 
   # change to repo path
   my $old_dir = Cwd::cwd();
@@ -1034,8 +1156,8 @@ sub _remove_symlink {
 
   my ($shash) = $self->symlinks_dbm;
 
-  if (not -l $sym_full) {
-    $self->verbose(1, "Symlink '$sym' doesn't exist");
+  if (not $self->_is_symlink($sym)) {
+    $self->verbose(1, "Symlink '$sym' ('$sym_full' in the repository) doesn't exist or is not a symlink");
     chdir($old_dir);
     return ();
   }
@@ -1046,6 +1168,8 @@ sub _remove_symlink {
     my $syms = $shash->{$file};
     @$syms = grep {$_ ne $sym} @$syms;
   }
+  # recover disk space. See DBM::Deep docs.
+  tied(%$shash)->optimize();
 
   $self->verbose(3, "Removing symlink '$sym'");
   unlink($sym_full) or (chdir($old_dir), return ());
@@ -1101,6 +1225,20 @@ sub DESTROY {
 
 1;
 __END__
+
+=head1 CAVEATS
+
+By default, PAR::Repository uses symlinks to save space.
+However, on some systems, there are no symlinks. Thus,
+you can use the option C<fake_symlinks =E<gt> 1> to the constructor
+to disable the use of symlinks.
+
+Converting existing repositories with the C<convert_symlinks =E<gt> 1>
+option is believed but not proven to be somewhat fragile, so
+back up your repository first.
+
+At some point in the future, C<fake_symlinks> may become the default.
+Principle of least surprise. But this isn't clear yet.
 
 =head1 SEE ALSO
 

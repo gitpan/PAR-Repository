@@ -10,7 +10,7 @@ use DBM::Deep;
 use Fcntl qw/:flock/;
 use File::Copy qw();
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 use constant 'MODULES_DBM_FILE'   => 'modules_dists.dbm';
 use constant 'SYMLINKS_DBM_FILE'  => 'symlinks.dbm';
 use constant 'SCRIPTS_DBM_FILE'   => 'scripts_dists.dbm';
@@ -82,21 +82,16 @@ It associates real files in the repository (keys) with a number of
 symbolic links.
 The values of the top level hash are arrays of distribution file names
 which are symlinks.
-Note that unlike the modules dbm, filenames always include in-repository
-paths.
 
 Example: (with some extra linebreaks to keep the text width down)
 
   {
-    'x86_64-linux-gnu-thread-multi/5.8.7/Math-Symbolic-0.502-
-     x86_64-linux-gnu-thread-multi-5.8.7.par'
+    'Math-Symbolic-0.502-x86_64-linux-gnu-thread-multi-5.8.7.par'
        => [
-            'any_arch/5.8.7/Math-Symbolic-0.502-any_arch-5.8.7.par',
-            'x86_64-linux-gnu-thread-multi/any_version/
-             Math-Symbolic-0.502-x86_64-linux-gnu-thread
-             -multi-any_version.par',
-            'any_arch/any_version/Math-Symbolic-0.502-
-             any_arch-any_version.par'
+            'Math-Symbolic-0.502-any_arch-5.8.7.par',
+            'Math-Symbolic-0.502-x86_64-linux-gnu-thread-multi-'
+            .'any_version.par',
+            'Math-Symbolic-0.502-any_arch-any_version.par'
           ],
   }
 

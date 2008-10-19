@@ -87,8 +87,9 @@ sub CanOpenRepo {
   require PAR::Repository;
 
   my $path = shift;
+  my @args = @_;
 
-  my $repo = PAR::Repository->new( path => $path );
+  my $repo = PAR::Repository->new( path => $path, @args );
   Test::More::isa_ok($repo, 'PAR::Repository');
   Test::More::ok(-d $path, __PACKAGE__ . ': repo path exists after open');
   return $repo;
