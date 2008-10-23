@@ -64,7 +64,12 @@ sub RunParrepo {
   my $cmd = RepoTest->ParrepoCmd;
   my $perl = $^X;
   my $inc = File::Spec->catdir($StartDir, File::Spec->updir(), 'blib', 'lib');
-  my @full_cmd = ($perl, "-I$inc", $cmd, @args);
+  my @full_cmd = (
+    $perl,
+    "-I$inc",
+    $cmd,
+    @args
+  );
 
   warn __PACKAGE__ . ": Running '@full_cmd'" if $Debug;
 
@@ -94,6 +99,16 @@ sub CanOpenRepo {
   Test::More::ok(-d $path, __PACKAGE__ . ': repo path exists after open');
   return $repo;
 }
+
+sub ConvertSymlinks {
+  my $class = shift;
+  my $path = shift;
+  my $repo = $class->CanOpenRepo($path);
+  
+  $repo->_convert_symlinks();
+  return();
+}
+
 
 
 END { chdir($StartDir); }

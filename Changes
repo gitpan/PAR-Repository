@@ -1,4 +1,9 @@
-Revision history for Perl extension PAR::Repository.
+
+0.16_02  Thu Oct 23 20:51 2008
+    - Occasionally, using defined($hash->{$foo}), we were inserting bogus
+      records into the dbs.
+    - Archive injection/removal test with symlink conversion in between
+    - Slight refactoring of the test code.
 
 0.16_01  Mon Oct 21 00:16 2008
     - Support for running without symlinks finally arrived!
@@ -6,12 +11,12 @@ Revision history for Perl extension PAR::Repository.
       symlinks not available)
     - convert_symlinks option to the constructor for converting
       existing repositories with symlinks to those without.
-    - fix to the ::DBM docs: the symlinks DB doesn't have paths.
-    - optimize the symlinks db space usage after deleting from it.
-    - expose the new options with parrepo (with a new command
+    - Fix to the ::DBM docs: the symlinks DB doesn't have paths.
+    - Optimize the symlinks db space usage after deleting from it.
+    - Expose the new options with parrepo (with a new command
       convert_symlinks, too)
-    - improved test suite.
-    - no longer use base if @ISA is ample.
+    - Much improved test suite.
+    - No longer use base if @ISA is ample.
 
 0.16     Thu Sep  4 16:21 2008
     - Fix the documentation in ::DBM on the symlinks database.

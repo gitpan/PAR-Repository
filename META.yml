@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                PAR-Repository
-version:             0.16_01
+version:             0.16_02
 abstract:            Create and modify PAR repositories
 license:             perl
 author:              

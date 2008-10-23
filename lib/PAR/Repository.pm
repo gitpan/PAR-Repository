@@ -27,7 +27,7 @@ our @ISA = qw(
 
 use constant REPOSITORY_INFO_FILE => 'repository_info.yml';
 
-our $VERSION = '0.16_01';
+our $VERSION = '0.16_02';
 our $VERBOSE = 0;
 
 # does the running platform have symlinks?
@@ -46,6 +46,7 @@ our $Info_Template = {
 # Hash of compatible PAR::Repository versions
 our $Compatible_Versions = {
     $VERSION => 1,
+    '0.16_01' => 1,
     '0.16' => 1,
     '0.15' => 1,
     '0.14' => 1,
@@ -378,6 +379,7 @@ sub _convert_symlinks {
 
   $self->{info}{fake_symlinks} = 1;
   YAML::Syck::DumpFile($info_file, $self->{info});
+  $self->{info} = YAML::Syck::LoadFile($info_file);
   return 1;
 }
 
@@ -633,7 +635,7 @@ sub inject {
 sub _is_symlink {
   my $self = shift;
   my $file = shift;
-  $self->verbose(3, "entering _is_symlink('$file')");
+  $self->verbose(3, "Entering _is_symlink('$file')");
   my %args = @_;
 
   my $old_dir = Cwd::cwd();
@@ -643,6 +645,7 @@ sub _is_symlink {
   (undef, undef, my $filearch, my $filepver) = PAR::Dist::parse_dist_name($file);
 
   if ($self->{info}{fake_symlinks}) {
+    $self->verbose(5, "In _is_symlink: fake_symlinks enabled.");
     my ($symh) = $self->symlinks_dbm;
     while (my ($dist, $symlinks) = each %$symh) {
       # otherwise, things might potentially blow up with strange directory
@@ -653,6 +656,7 @@ sub _is_symlink {
     return();
   }
   else {
+    $self->verbose(5, "In _is_symlink: fake_symlinks disabled.");
     my $f = File::Spec->catfile($filearch, $filepver, $file);
     my $link = -l $f;
     chdir($old_dir);
@@ -790,9 +794,9 @@ sub remove {
 
   # find links
   # Why so complicated? Because DBM::Deep has too much magic!
-  my $links = $symh->{$target_file};
+  my $links = exists($symh->{$target_file}) ? $symh->{$target_file} : [];
   if (not defined $links) {
-    $links = [];
+    die "Found undefined value in symlinks DBM for file name '$target_file'! This is a regression!";
   }
   else {
     $links = [ map {$_} @$links ];
@@ -812,7 +816,9 @@ sub remove {
   }
 
   # remove the whole archive from the symlinks db
-  if ( defined($symh->{$target_file}) and @{$symh->{$target_file}} == 0 ) {
+  if ( exists($symh->{$target_file})
+       and ref($symh->{$target_file})
+       and @{$symh->{$target_file}} == 0 ) {
     delete $symh->{$target_file};
   }
 
@@ -1097,6 +1103,8 @@ sub _remove_files_from_db {
   my $db = shift;
   my $files = shift;
 
+  $self->verbose(2, "Entering _remove_files_from_db('".join("', '",@$files)."'");
+
   my %files = map {($_ => undef)} @$files;
   my $deleted = 0;
   foreach my $namespace_or_script (keys %$db) {
@@ -1135,8 +1143,8 @@ This is a private method.
 
 sub _remove_symlink {
   my $self = shift;
-  $self->verbose(2, "Entering _remove_symlink");
   my %args = @_;
+  $self->verbose(2, "Entering _remove_symlink(sym => '".$args{sym}."')");
 
   my $sym = $args{sym};
 
@@ -1167,6 +1175,8 @@ sub _remove_symlink {
   foreach my $file (keys %{$shash}) {
     my $syms = $shash->{$file};
     @$syms = grep {$_ ne $sym} @$syms;
+    delete $shash->{$file}
+      if @$syms == 0;
   }
   # recover disk space. See DBM::Deep docs.
   tied(%$shash)->optimize();

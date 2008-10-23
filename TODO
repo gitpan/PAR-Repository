@@ -13,11 +13,6 @@ PAR::Repository:
 ==> done
 ----> in Client::HTTP, the checksums should be fetched as data, not as a file.
 
-- implement scanning for pure-perl modules?
-See "sub getpurity" from CPANdeps: http://drhyde.cvs.sourceforge.net/drhyde/perlcpandeps/lib/CPANdeps.pm?view=markup
-==> Done in PAR::Dist::FromCPAN
-
-
 PAR:
 
 --> use PAR { repository => 'http://foo/', run => 'foo.pl', upgrade => 1 };
