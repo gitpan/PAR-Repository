@@ -1,4 +1,7 @@
 
+0.17  Tue Jan 13 19:48 2009
+    - Do a chmod(644) of the dbm checksums file after creation.
+
 0.16_02  Thu Oct 23 20:51 2008
     - Occasionally, using defined($hash->{$foo}), we were inserting bogus
       records into the dbs.

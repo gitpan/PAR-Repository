@@ -392,6 +392,8 @@ HERE
   my $target_file = catfile($self->{path}, PAR::Repository::DBM::DBM_CHECKSUMS_FILE());
   File::Copy::move($tempfile, $target_file)
     or die "Could not move checksums file '$tempfile' to '$target_file': $!";
+  # FIXME, could this be done more user friendly? But somehow, the file ended up being 600 by default...
+  chmod(0644, $target_file);
 
   return 1;
 }
@@ -436,7 +438,7 @@ Steffen Müller, E<lt>smueller@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2006-2008 by Steffen Müller
+Copyright 2006-2009 by Steffen Müller
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.6 or,

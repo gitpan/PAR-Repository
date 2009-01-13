@@ -27,7 +27,7 @@ our @ISA = qw(
 
 use constant REPOSITORY_INFO_FILE => 'repository_info.yml';
 
-our $VERSION = '0.16_02';
+our $VERSION = '0.17';
 our $VERBOSE = 0;
 
 # does the running platform have symlinks?
@@ -46,6 +46,7 @@ our $Info_Template = {
 # Hash of compatible PAR::Repository versions
 our $Compatible_Versions = {
     $VERSION => 1,
+    '0.16_02' => 1,
     '0.16_01' => 1,
     '0.16' => 1,
     '0.15' => 1,
@@ -1271,7 +1272,7 @@ Steffen Mueller, E<lt>smueller@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2006-2008 by Steffen Mueller
+Copyright 2006-2009 by Steffen Mueller
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.6 or,

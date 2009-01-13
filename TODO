@@ -4,7 +4,9 @@ ToDo list
 General:
 - Security?
 
-PAR::Repository:
+
+PAR::Repository
+---------------
 
 - implement querying (mostly done)
 ==> query arch
@@ -13,7 +15,9 @@ PAR::Repository:
 ==> done
 ----> in Client::HTTP, the checksums should be fetched as data, not as a file.
 
-PAR:
+
+PAR
+---
 
 --> use PAR { repository => 'http://foo/', run => 'foo.pl', upgrade => 1 };
 ==> Same, but check for updates and install permanently.
@@ -23,13 +27,15 @@ file => 'foo' || repository => 'foo'
 fallback => 1|0 (1 default for repo, 0 default for file)
 install => 1|0 or upgrade => 1|0 only for repository?
 
-PAR::Repository::Client:
+
+PAR::Repository::Client
+-----------------------
 
 (DONE) - basic upgrading
 
 - code for upgrading ==> checksums?
 - "update" mode needs to deal with dists that are no longer available.
-
+- parinstall client script?
 
 
 

@@ -169,7 +169,7 @@ Steffen Müller, E<lt>smueller@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2006-2008 by Steffen Müller
+Copyright 2006-2009 by Steffen Müller
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.6 or,
