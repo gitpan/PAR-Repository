@@ -3,20 +3,6 @@ use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 
-if (not $ENV{IGNORE_SYMLINK_WARNINGS} and not eval {symlink("", ""); 1;}) {
-    warn <<'HERE';
-Your system does not support creation of symbolic links.
-Using PAR::Repository on this system to manage a repository
-is dangerous because the necessary symbolic links might not
-be created.
-
-If you want to ignore this message and continue installing
-PAR::Reporitory, please set the environment variable
-IGNORE_SYMLINK_WARNINGS to a true valid and rerun Makefile.PL.
-HERE
-    exit(1);
-}
-
 WriteMakefile(
     NAME              => 'PAR::Repository',
     VERSION_FROM      => 'lib/PAR/Repository.pm', # finds $VERSION
@@ -35,7 +21,7 @@ WriteMakefile(
         'Pod::Text' => '0',
         'ExtUtils::Manifest' => '0',
         'PAR::Repository::Query' => '0.12',
-        'PAR::Indexer' => '0.90',
+        'PAR::Indexer' => '0.91',
         'Digest::MD5' => '0',
     }, # e.g., Module::Name => 1.1
     EXE_FILES => [

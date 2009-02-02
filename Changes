@@ -1,4 +1,12 @@
 
+0.18_01  Mon Feb  2 02:46 2009
+    - Add ignore_provides switch to package injection.
+    - Add static dependencies
+    - Remove warning in Makefile.PL about symlink support
+    - Fix bug in _update_info_version.
+    - Add _create_dbm as an abstraction.
+    - Slight fixes to 'parrepo' (verbosity)
+
 0.17  Tue Jan 13 19:48 2009
     - Do a chmod(644) of the dbm checksums file after creation.
 

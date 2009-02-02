@@ -2,7 +2,7 @@
 use 5.006;
 use strict;
 use warnings;
-our $VERSION = '0.13';
+our $VERSION = '0.14';
 
 require PAR::Repository;
 use Getopt::Long qw/GetOptions/;
@@ -352,13 +352,13 @@ my %CMD = (
 ####
 
 sub print_help {
-        my $msg = shift;
-        $msg .= "\n\n" if defined $msg;
-        print $msg if defined $msg;
-        require Pod::Text;
-        my $parser = Pod::Text->new;
-        $parser->parse_from_filehandle(\*DATA);
-        exit(1);
+    my $msg = shift;
+    $msg .= "\n\n" if defined $msg;
+    print $msg if defined $msg;
+    require Pod::Text;
+    my $parser = Pod::Text->new;
+    $parser->parse_from_filehandle(\*DATA);
+    exit(1);
 }
 
 ####
@@ -372,7 +372,11 @@ print_help() if (not defined $cmd);
 if ($cmd =~ /^-/) {
     unshift @ARGV, $cmd;
     GetOptions(
-        'v|version' => sub { print "This is parrepo version '$VERSION'.\n"; exit(1); },
+        'v|version' => sub {
+          print "This is parrepo version '$VERSION'.\n";
+          print "PAR::Repository version '$PAR::Repository::VERSION'.\n";
+          exit(1);
+        },
         'h|help'    => sub { print_help() },
     );
     print_help("Missing command?");
@@ -392,7 +396,7 @@ __DATA__
 
 =head1 NAME
 
-parrepo - server side script for managing PAR repositories
+parrepo - Server side script for managing PAR repositories
 
 =head1 SYNOPSIS
 

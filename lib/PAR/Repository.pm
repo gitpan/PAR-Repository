@@ -27,7 +27,7 @@ our @ISA = qw(
 
 use constant REPOSITORY_INFO_FILE => 'repository_info.yml';
 
-our $VERSION = '0.17';
+our $VERSION = '0.18_01';
 our $VERBOSE = 0;
 
 # does the running platform have symlinks?
@@ -46,6 +46,8 @@ our $Info_Template = {
 # Hash of compatible PAR::Repository versions
 our $Compatible_Versions = {
     $VERSION => 1,
+    '0.17_01'=> 1,
+    '0.17'=> 1,
     '0.16_02' => 1,
     '0.16_01' => 1,
     '0.16' => 1,
@@ -230,14 +232,16 @@ sub new {
     path => $path,
 
     # The tied dbm hashes
-    modules_hash => undef,
-    symlinks_hash => undef,
-    scripts_hash => undef,
+    modules_hash      => undef,
+    symlinks_hash     => undef,
+    scripts_hash      => undef,
+    dependencies_hash => undef,
 
     # The temp dbm files on disk
-    modules_dbm_temp_file => undef,
-    symlinks_dbm_temp_file => undef,
-    scripts_dbm_temp_file => undef,
+    modules_dbm_temp_file      => undef,
+    symlinks_dbm_temp_file     => undef,
+    scripts_dbm_temp_file      => undef,
+    dependencies_dbm_temp_file => undef,
 
     # The YAML info as Perl data structure
     info => undef,
@@ -249,7 +253,9 @@ sub new {
   my $mod_dbm   = catfile($path, PAR::Repository::DBM::MODULES_DBM_FILE());
   my $sym_dbm   = catfile($path, PAR::Repository::DBM::SYMLINKS_DBM_FILE());
   my $scr_dbm   = catfile($path, PAR::Repository::DBM::SCRIPTS_DBM_FILE());
+  my $dep_dbm   = catfile($path, PAR::Repository::DBM::DEPENDENCIES_DBM_FILE());
   my $info_file = catfile($path, PAR::Repository::REPOSITORY_INFO_FILE());
+
   if (-d $path
       and -f $mod_dbm.'.zip' and -f $sym_dbm.'.zip'
       and -f $info_file ) {
@@ -290,9 +296,16 @@ sub new {
       $self->verbose(1, "Upgrading repository version to $VERSION");
       $self->_update_info_version or return ();
       $self->verbose(3, "Creating scripts database");
-      my ($vol, $path, $file) = splitpath($scr_dbm);
-      $self->_zip_file($scr_dbm, $scr_dbm.'.zip', $file);
-      unlink($scr_dbm);
+      $self->_create_dbm($scr_dbm.'.zip');
+    }
+
+    # Generate deps db and upgrade repository version
+    # if the deps db doesn't exist.
+    if (not -f $dep_dbm.'.zip') {
+      $self->verbose(1, "Upgrading repository version to $VERSION");
+      $self->_update_info_version or return ();
+      $self->verbose(3, "Creating dependencies database");
+      $self->_create_dbm($dep_dbm.'.zip');
     }
 
   } # end if everything is in place
@@ -319,25 +332,13 @@ sub _create_repository {
   my $mod_dbm   = catfile($path, PAR::Repository::DBM::MODULES_DBM_FILE());
   my $sym_dbm   = catfile($path, PAR::Repository::DBM::SYMLINKS_DBM_FILE());
   my $scr_dbm   = catfile($path, PAR::Repository::DBM::SCRIPTS_DBM_FILE());
+  my $dep_dbm   = catfile($path, PAR::Repository::DBM::DEPENDENCIES_DBM_FILE());
   my $info_file = catfile($path, PAR::Repository::REPOSITORY_INFO_FILE());
 
-  # create pristine dbm files
-  {
-    my $mod_db = DBM::Deep->new($mod_dbm);
-    my $sym_db = DBM::Deep->new($sym_dbm);
-    my $scr_db = DBM::Deep->new($scr_dbm);
-  }
-
   $self->verbose(3, "Creating repository databases");
-  (undef, undef, my $file) = splitpath($mod_dbm);
-  $self->_zip_file($mod_dbm, $mod_dbm.'.zip', $file);
-  unlink($mod_dbm);
-  (undef, undef, $file) = splitpath($sym_dbm);
-  $self->_zip_file($sym_dbm, $sym_dbm.'.zip', $file);
-  unlink($sym_dbm);
-  (undef, undef, $file) = splitpath($scr_dbm);
-  $self->_zip_file($scr_dbm, $scr_dbm.'.zip', $file);
-  unlink($scr_dbm);
+  foreach my $dbm ($mod_dbm, $sym_dbm, $scr_dbm, $dep_dbm) {
+    $self->_create_dbm($dbm.'.zip');
+  }
 
   my $info_copy = {%$Info_Template};
   $info_copy->{fake_symlinks} = 1 if $fake_symlinks;
@@ -476,6 +477,17 @@ By default, PAR::Repository indexes all modules found in a distribution
 as well as all scripts. Set this parameter to a true value to
 skip indexing scripts.
 
+=item I<ignore_provides>
+
+Set this to true if you want to ignore the META.yml C<provides> section
+which should normally list all modules in the distribution. In that case,
+a manual scan for packages is performed.
+
+=item I<no_dependencies>
+
+Set this to true if you want to skip inserting dependency information
+into the database. You'd better have a good idea why you want this.
+
 =back
 
 =cut
@@ -501,15 +513,17 @@ sub inject {
   $self->verbose(3, "Target file will be '$target_file'");
 
   # read META.yml from PAR archive
-  my $meta = PAR::Dist::get_meta($target_file);
+  my $meta = PAR::Dist::get_meta($dfile);
   my $meta_data;
   if (defined $meta) {
     $self->verbose(3, "We have a META.yml");
     $meta_data = YAML::Syck::Load($meta);
   }
 
+
+  # Deterimine the packages in the distribution
   my $packages;
-  if (defined $meta_data and exists $meta_data->{provides}) {
+  if (!$args{ignore_provides} and defined $meta_data and exists $meta_data->{provides}) {
     # cool, we have a working META.yml with provides!
     $self->verbose(3, "... which has a 'provides' field");
     $packages = $meta_data->{provides};
@@ -525,12 +539,21 @@ sub inject {
     croak("Your PAR distribution is either invalid or doesn't contain any modules.");
   }
 
+  # Determine dependencies as declared in META.yml
+  my $dependencies;
+  if (not $args{no_dependencies}) {
+    $dependencies = PAR::Indexer::dependencies_from_meta_yml($meta_data);
+  }
+  # FIXME This is not the right way. There should be a dependency scanner, no?
+  $dependencies = {} if not defined $dependencies;
+
   # determine any scripts to index
   my $scripts;
   if (not $args{no_scripts}) {
     $self->verbose(3, "Scanning par for scripts");
     $scripts = PAR::Indexer::scan_par_for_scripts($dfile);
   }
+
 
   # create path in repository
   my $destpath = catdir($arch, $perlver);
@@ -558,14 +581,23 @@ sub inject {
   }
   File::Copy::copy($dfile, $complete_target);
 
+
   # insert into modules dbm.
   $self->verbose(3, "Inserting packages into modules DBM");
   $self->_add_packages(packages => $packages, file => $target_file);
 
+
+  # insert into scripts dbm.
   if (not $args{no_scripts}) {
-    # insert into scripts dbm.
     $self->verbose(3, "Inserting scripts into scripts DBM");
     $self->_add_scripts(scripts => $scripts, file => $target_file);
+  }
+
+  
+  # insert into deps dbm
+  if (not $args{no_dependencies}) {
+    $self->verbose(3, "Inserting dependencies into dependencies DBM");
+    $self->_add_dependencies(dependencies => $dependencies, file => $target_file);
   }
 
   my $is_any_arch = $args{any_arch} && !($arch eq 'any_arch');
@@ -623,6 +655,7 @@ sub inject {
   $self->close_modules_dbm;
   $self->close_symlinks_dbm;
   $self->close_scripts_dbm;
+  $self->close_dependencies_dbm;
   return 1;
 }
 
@@ -792,6 +825,7 @@ sub remove {
   my ($symh) = $self->symlinks_dbm;
   my ($modh) = $self->modules_dbm;
   my ($scrh) = $self->scripts_dbm;
+  my ($deph) = $self->dependencies_dbm;
 
   # find links
   # Why so complicated? Because DBM::Deep has too much magic!
@@ -810,6 +844,11 @@ sub remove {
   # from modules and scripts dbs (This is slow!)
   $self->_remove_files_from_db($modh, \@module_and_links);
   $self->_remove_files_from_db($scrh, \@module_and_links);
+
+  # remove dependencies
+  if (exists $deph->{$target_file}) {
+    delete $deph->{$target_file};
+  }
 
   # remove links
   foreach my $link (@$links) {
@@ -833,6 +872,7 @@ sub remove {
   $self->close_modules_dbm;
   $self->close_symlinks_dbm;
   $self->close_scripts_dbm;
+  $self->close_dependencies_dbm;
 
   return 1;
 }
@@ -942,10 +982,37 @@ sub _add_packages {
   my $target_file = $args{file};
 
   my ($hash, $temp_file) = $self->modules_dbm;
-  foreach my $pkg (keys %$packages) {
-    $hash->{$pkg} = {} if not exists $hash->{$pkg};
-    $hash->{$pkg}{$target_file} = $packages->{$pkg}{version};
+  my %missing_version;
+  my %seen_files; # if a version is not available, fall back to another version in the file IF it's a META style provides
+  foreach my $pkgname (keys %$packages) {
+    $hash->{$pkgname} = {} if not exists $hash->{$pkgname};
+    my $this_pkg_dists = $hash->{$pkgname};
+    
+    if (!ref($packages->{$pkgname})) {
+      # flat pkg => version
+      $this_pkg_dists->{$target_file} = $packages->{$pkgname}||'0';
+    }
+    else {
+      # nested META.yml style provides
+      if (not exists $packages->{$pkgname}{version}) {
+        $missing_version{$pkgname} = $packages->{$pkgname};
+      }
+      else {
+        $this_pkg_dists->{$target_file} = $packages->{$pkgname}{version};
+        $seen_files{ $packages->{$pkgname}{file} } = $packages->{$pkgname}{version}
+          if defined $packages->{$pkgname}{file}
+          and defined $packages->{$pkgname}{version};
+      }
+    }
+  } # end foreach package
+
+  # fill in the missing versions that might be resolved using the file matching
+  # this is here since the ordering isn't defined
+  foreach my $pkgname (keys %missing_version) {
+    my $this_pkg_dists = $hash->{$pkgname};
+    $this_pkg_dists->{$target_file} = $seen_files{ $missing_version{$pkgname}{file} }; # degrades to undef
   }
+
   return 1;
 }
 
@@ -1059,6 +1126,41 @@ sub _add_symlink {
   return 1;
 }
 
+=head2 _add_dependencies
+
+Adds a number of distribution E<lt>-E<gt> module associations to the
+dependencies DBM file.
+
+Parameters: C<file =E<gt> 'DistName-0.01-.....par', dependencies =E<gt> \%deps_hash>
+where C<\%deps_hash> the returned structure from C<PAR::Indexer::dependencies_from_meta_yml>:
+module names associated to their minimal required versions.
+
+For internal use only!
+
+=cut
+
+sub _add_dependencies {
+  my $self = shift;
+  $self->verbose(2, "Entering _add_dependencies()");
+  my %args = @_;
+  my $distribution = $args{file};
+  my $dependencies = $args{dependencies};
+  return()
+    if not defined $distribution
+    or not defined $dependencies
+    or not ref($dependencies) eq 'HASH'
+    or keys(%$dependencies) == 0;
+
+  my ($hash, $temp_file) = $self->dependencies_dbm;
+  # FIXME: shouldn't really exist, no?
+  my $dist_hash = $hash->{$distribution} ||= {};
+  foreach my $dep_name (keys %$dependencies) {
+    $dist_hash->{$dep_name} = $dependencies->{$dep_name};
+    $dist_hash->{$dep_name} = 0 if not defined $dist_hash->{$dep_name};
+  }
+  return 1;
+}
+
 
 =head2 _update_info_version
 
@@ -1072,10 +1174,10 @@ Should be used with care and considered a private method.
 sub _update_info_version {
   my $self = shift;
   $self->verbose(2, "Entering _update_info_version");
-  my $yaml = $self->{info};
+  my $yaml = $self->{info} ||= {};
   $yaml->{repository_version} = $VERSION;
   my $info_file = catfile($self->{path}, PAR::Repository::REPOSITORY_INFO_FILE());
-  unless ($yaml->write($info_file)) {
+  unless (YAML::Syck::DumpFile($info_file, $yaml)) {
     croak("Could not write repository info YAML file to '$info_file'.");
   }
   return 1;
@@ -1229,6 +1331,7 @@ sub DESTROY {
   $self->close_scripts_dbm;
   $self->close_modules_dbm;
   $self->close_symlinks_dbm;
+  $self->close_dependencies_dbm;
 
   $self->update_dbm_checksums;
 }

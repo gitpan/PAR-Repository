@@ -41,7 +41,7 @@ sub check_injection {
       )} @$files
   };
   Test::More::is_deeply(
-    $result, $expect
+    $result, $expect, 'provides matches'
   );
 
 }
@@ -58,9 +58,28 @@ sub check_symlinks {
   my $copy = tied(%$dbm)->export(); # don't do this at home;
   Test::More::is_deeply(
     $copy,
-    $symlinks
+    $symlinks,
+    'symlinks match'
   );
 }
+
+####################
+sub check_dependencies {
+  my $class = shift;
+  my $deps  = shift || {};
+  my $repodir = shift || File::Spec->catdir(RepoTest->TempDir, 'repo');
+
+  my $repo = RepoTest->CanOpenRepo($repodir);
+
+  my ($dbm) = $repo->dependencies_dbm();
+  my $copy = tied(%$dbm)->export(); # don't do this at home;
+  Test::More::is_deeply(
+    $copy,
+    $deps,
+    'dependencies match'
+  );
+}
+
 
 ####################
 sub check_removal {

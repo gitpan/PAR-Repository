@@ -10,11 +10,12 @@ use DBM::Deep;
 use Fcntl qw/:flock/;
 use File::Copy qw();
 
-our $VERSION = '0.06';
-use constant 'MODULES_DBM_FILE'   => 'modules_dists.dbm';
-use constant 'SYMLINKS_DBM_FILE'  => 'symlinks.dbm';
-use constant 'SCRIPTS_DBM_FILE'   => 'scripts_dists.dbm';
-use constant 'DBM_CHECKSUMS_FILE' => 'dbm_checksums.txt';
+our $VERSION = '0.18';
+use constant 'MODULES_DBM_FILE'      => 'modules_dists.dbm';
+use constant 'SYMLINKS_DBM_FILE'     => 'symlinks.dbm';
+use constant 'SCRIPTS_DBM_FILE'      => 'scripts_dists.dbm';
+use constant 'DEPENDENCIES_DBM_FILE' => 'dependencies.dbm';
+use constant 'DBM_CHECKSUMS_FILE'    => 'dbm_checksums.txt';
 
 =head1 NAME
 
@@ -36,12 +37,13 @@ None.
 
 =head2 GLOBALS
 
-This package has three constants:
+This package has a few constants:
 
-MODULES_DBM_FILE, SYMLINKS_DBM_FILE, and SCRIPTS_DBM_FILE.
+C<MODULES_DBM_FILE>, C<SYMLINKS_DBM_FILE>, and C<SCRIPTS_DBM_FILE>,
+C<DEPENDENCIES_DBM_FILE>, and C<DBM_CHECKSUMS_FILE>.
 They are accessible
-via C<PAR::Repository::DBM::..._DBM_FILE>. They indicate
-the file names of the DBM databases.
+as functions via C<PAR::Repository::DBM::...>. They indicate
+the file names of the DBM databases and the DBM checksums file.
 
 =head1 DATABASE STRUCTURE
 
@@ -107,10 +109,25 @@ Example:
 
   {
     'parrepo' => {
-      'PAR-Repository-0.03-x86_64-any_arch-5.8.7.par' => '0.02',
-      'PAR-Repository-0.02-x86_64-any_arch-any_version.par' => '0.01',
+      'PAR-Repository-0.03-x86_64--5.8.7.par'        => '0.02',
+      'PAR-Repository-0.02-any_arch-any_version.par' => '0.01',
     },
   }
+
+=head2 DEPENDENCIES DBM
+
+This DBM file stores distribution names and associates them with
+names of modules it depends on and their minimum versions. It does
+not differentiate between the various types of dependencies that
+can be found in a CPAN C<META.yml> file.
+
+Example:
+
+ {
+   'Distname-0.03-x86_64-any_version.par' => {
+      'Module::It::Depends::On' => '1.00',
+   },
+ }
 
 =head1 METHODS
 
@@ -236,6 +253,43 @@ sub scripts_dbm {
   return($hash, $tempfile);
 }
 
+=head2 dependencies_dbm
+
+Opens the dependencies.dbm.zip file in the repository and
+returns a tied hash reference to that file. Second return value is the
+file name.
+
+If the file does not exist, it returns the empty list.
+
+You should know what you are doing when you use this
+method.
+
+=cut
+
+sub dependencies_dbm {
+  my $self = shift;
+  $self->verbose(2, 'Entering dependencies_dbm()');
+
+  if (defined $self->{dependencies_dbm_hash}) {
+    return $self->{dependencies_dbm_hash};
+  }
+
+  my $old_dir = Cwd::cwd();
+  chdir($self->{path});
+  my $file = PAR::Repository::DBM::DEPENDENCIES_DBM_FILE().'.zip';
+  chdir($old_dir), return() if not -f $file;
+
+  my ($hash, $tempfile) = $self->_open_dbm($file);
+  chdir($old_dir), return() if not defined $hash;
+
+  $self->{dependencies_dbm_hash} = $hash;
+  $self->{dependencies_dbm_temp_file} = $tempfile;
+
+  chdir($old_dir);
+
+  return ($hash, $tempfile);
+}
+
 
 =head2 close_modules_dbm
 
@@ -337,6 +391,40 @@ sub close_scripts_dbm {
 }
 
 
+=head2 close_dependencies_dbm
+
+Closes the C<dependencies.dbm> file committing any
+changes and then zips it back into
+C<dependencies.dbm.zip>.
+
+This is called when the object is destroyed.
+
+=cut
+
+sub close_dependencies_dbm {
+  my $self = shift;
+  $self->verbose(2, 'Entering close_dependencies_dbm()');
+  my $hash = $self->{dependencies_dbm_hash};
+  return if not defined $hash;
+
+  my $obj = tied($hash);
+  $self->{dependencies_dbm_hash} = undef;
+  undef $hash;
+  undef $obj;
+
+  $self->_zip_file(
+      $self->{dependencies_dbm_temp_file},
+      catfile($self->{path}, PAR::Repository::DBM::DEPENDENCIES_DBM_FILE().'.zip'),
+      PAR::Repository::DBM::DEPENDENCIES_DBM_FILE(),
+  );
+
+  unlink $self->{dependencies_dbm_temp_file};
+  $self->{dependencies_dbm_temp_file} = undef;
+
+  return 1;
+}
+
+
 =head2 update_dbm_checksums
 
 Updates the DBM checksums file C<dbm_checksums.txt> with the
@@ -369,7 +457,6 @@ sub update_dbm_checksums {
 # FILENAME BASE64_MD5_HASH
 # where the file name and the MD5 hash are separated
 # by a TAB character, not arbitrary whitespace!
-# Hashes introduce comment lines.
 HERE
 
   # calculate hashes and write them to the temp file
@@ -377,6 +464,7 @@ HERE
       PAR::Repository::DBM::MODULES_DBM_FILE(),
       PAR::Repository::DBM::SCRIPTS_DBM_FILE(),
       PAR::Repository::DBM::SYMLINKS_DBM_FILE(),
+      PAR::Repository::DBM::DEPENDENCIES_DBM_FILE(),
     ) {
     my $filepath = catfile($self->{path}, $dbmfile.'.zip');
     open my $fh, '<', $filepath or die "Could not open DBM file '$filepath' for reading: $!";
@@ -428,6 +516,41 @@ sub _open_dbm {
   return (\%hash, $tempfile);
 }
 
+=head2 _create_dbm
+
+Creates a zipped dbm file given as first argument.
+
+This is B<only for internal use>.
+
+=cut
+
+sub _create_dbm {
+  my $self = shift;
+  $self->verbose(2, 'Entering _create_dbm()');
+  my $file = shift;
+  $file .= '.zip' unless $file =~ /\.zip$/i;
+
+  my ($tempfh, $tempfile) = File::Temp::tempfile(
+      'temporary_dbm_XXXXX',
+      UNLINK => 0,
+      DIR    => File::Spec->tmpdir(),
+  );
+  {
+    my %hash;
+    my $obj = tie %hash, "DBM::Deep", {
+      file    => $tempfile,
+      locking => 1,
+    }; 
+  }
+
+  my ($v, $p, $f) = splitpath($file);
+  $f =~ s/\.zip$//i;
+  $self->_zip_file($tempfile, $file, $f) or unlink($tempfile), return();
+
+  unlink($tempfile);
+
+  return 1;
+}
 
 1;
 __END__

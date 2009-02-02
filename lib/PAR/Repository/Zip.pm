@@ -12,7 +12,7 @@ use File::Temp;
 #require ExtUtils::MM;
 use Archive::Zip;
 
-our $VERSION = '0.03';
+our $VERSION = '0.18';
 
 =head1 NAME
 

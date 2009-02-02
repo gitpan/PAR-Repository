@@ -1,6 +1,7 @@
 use strict;
 use warnings;
-use Test::More tests => 1+3+29;
+use Test::More tests => 39;
+BEGIN { $ENV{PAR_REPOSITORY_SYMLINK_SUPPORT} = 0 }
 BEGIN { use_ok('PAR::Repository') };
 
 chdir('t') if -d 't';
