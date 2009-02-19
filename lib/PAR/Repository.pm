@@ -27,7 +27,7 @@ our @ISA = qw(
 
 use constant REPOSITORY_INFO_FILE => 'repository_info.yml';
 
-our $VERSION = '0.18_01';
+our $VERSION = '0.19';
 our $VERBOSE = 0;
 
 # does the running platform have symlinks?
@@ -46,6 +46,8 @@ our $Info_Template = {
 # Hash of compatible PAR::Repository versions
 our $Compatible_Versions = {
     $VERSION => 1,
+    '0.19'=> 1,
+    '0.18_01'=> 1,
     '0.17_01'=> 1,
     '0.17'=> 1,
     '0.16_02' => 1,

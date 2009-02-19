@@ -7,6 +7,7 @@ General:
 - PAR::Repository::Client bootstrap script
 --> inline PAR::Dist
 --> Require Compress::Zlib
+--> LWP!??!
 --> load and install the "newest" .par file of PAR::Repository::Client from CPAN
 
 PAR

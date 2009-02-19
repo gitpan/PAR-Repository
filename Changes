@@ -1,4 +1,7 @@
 
+0.19  Thu Feb 19 16:48 2009
+    - Promote to stable version.
+
 0.18_01  Mon Feb  2 02:46 2009
     - Add ignore_provides switch to package injection.
     - Add static dependencies
