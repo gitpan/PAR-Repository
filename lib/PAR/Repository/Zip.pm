@@ -12,7 +12,7 @@ use File::Temp;
 #require ExtUtils::MM;
 use Archive::Zip;
 
-our $VERSION = '0.18';
+our $VERSION = '0.20';
 
 =head1 NAME
 
@@ -165,11 +165,11 @@ __END__
 
 =head1 AUTHOR
 
-Steffen Müller, E<lt>smueller@cpan.orgE<gt>
+Steffen ME<0xfc>ller, E<lt>smueller@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2006-2009 by Steffen Müller
+Copyright 2006-2009 by Steffen ME<0xfc>ller
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.6 or,

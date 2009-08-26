@@ -9,7 +9,7 @@ BEGIN {
     exit();
   }
   else {
-    Test::More->import( tests => 1+3+11 );
+    Test::More->import( tests => 1+3+13 );
     delete $INC{'Digest/MD5/Perl.pm'};
   }
 }

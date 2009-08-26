@@ -27,7 +27,7 @@ our @ISA = qw(
 
 use constant REPOSITORY_INFO_FILE => 'repository_info.yml';
 
-our $VERSION = '0.19';
+our $VERSION = '0.20';
 our $VERBOSE = 0;
 
 # does the running platform have symlinks?

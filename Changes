@@ -1,3 +1,9 @@
+0.20  Wed Aug 26 15:19 2009
+    - Many temporary-file-locking fixes to make
+      PAR::Repository work on FreeBSD (Slaven Rezic)
+    - Fix to the test count for MD5 checksums (Slaven Rezic)
+    - Documentation/POD fixes (Slaven Rezic)
+    - Dependency fix for File::Temp. Require 0.19 (Slaven Rezic)
 
 0.19  Thu Feb 19 16:48 2009
     - Promote to stable version.

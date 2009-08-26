@@ -10,7 +10,7 @@ use DBM::Deep;
 use Fcntl qw/:flock/;
 use File::Copy qw();
 
-our $VERSION = '0.18';
+our $VERSION = '0.20';
 use constant 'MODULES_DBM_FILE'      => 'modules_dists.dbm';
 use constant 'SYMLINKS_DBM_FILE'     => 'symlinks.dbm';
 use constant 'SCRIPTS_DBM_FILE'      => 'scripts_dists.dbm';
@@ -432,6 +432,10 @@ checksums of the currently existing zipped DBM files.
 
 This is called when the L<PAR::Repository> object is destroyed.
 
+Maintainer note: Very similar code lives in the
+C<PAR::Repository::Client::DBM::_calculate_cache_local_checksums>
+method. Keep in sync or refactor.
+
 =cut
 
 sub update_dbm_checksums {
@@ -503,6 +507,7 @@ sub _open_dbm {
       'temporary_dbm_XXXXX',
       UNLINK => 0,
       DIR    => File::Spec->tmpdir(),
+      EXLOCK => 0,
   );
   my ($v, $p, $f) = splitpath($file);
   $f =~ s/\.zip$//;
@@ -534,6 +539,7 @@ sub _create_dbm {
       'temporary_dbm_XXXXX',
       UNLINK => 0,
       DIR    => File::Spec->tmpdir(),
+      EXLOCK => 0,
   );
   {
     my %hash;
@@ -557,11 +563,11 @@ __END__
 
 =head1 AUTHOR
 
-Steffen Müller, E<lt>smueller@cpan.orgE<gt>
+Steffen ME<0xfc>ller, E<lt>smueller@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2006-2009 by Steffen Müller
+Copyright 2006-2009 by Steffen ME<0xfc>ller
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.6 or,

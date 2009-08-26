@@ -12,7 +12,7 @@ WriteMakefile(
         'DBM::Deep' => '1.0012',
         'File::Spec' => '0',
         'File::Path' => '0',
-        'File::Temp' => '0',
+        'File::Temp' => '0.19', # EXLOCK
         'File::Copy' => '0',
         'Archive::Zip' => '0',
         'PAR::Dist' => '0.44',
