@@ -27,7 +27,7 @@ our @ISA = qw(
 
 use constant REPOSITORY_INFO_FILE => 'repository_info.yml';
 
-our $VERSION = '0.20';
+our $VERSION = '0.21';
 our $VERBOSE = 0;
 
 # does the running platform have symlinks?
@@ -683,7 +683,7 @@ sub _is_symlink {
   if ($self->{info}{fake_symlinks}) {
     $self->verbose(5, "In _is_symlink: fake_symlinks enabled.");
     my ($symh) = $self->symlinks_dbm;
-    while (my ($dist, $symlinks) = each %$symh) {
+    foreach my $symlinks (values %$symh) {
       # otherwise, things might potentially blow up with strange directory
       # separators. This will need better consideration in the future.
       chdir($old_dir), return 1 if grep { $file eq $_ } @$symlinks;

@@ -1,5 +1,6 @@
 bin/parrepo
 Changes
+dump_db.pl
 lib/PAR/Repository.pm
 lib/PAR/Repository/DBM.pm
 lib/PAR/Repository/Zip.pm
@@ -20,4 +21,5 @@ t/data/Test-Kit-0.02-any_arch-any_version.par
 t/lib/RepoTest.pm
 t/lib/RepoTest/TestKit.pm
 TODO
-META.yml                                 Module meta-data (added by MakeMaker)
+META.yml                                 Module YAML meta-data (added by MakeMaker)
+META.json                                Module JSON meta-data (added by MakeMaker)

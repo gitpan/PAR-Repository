@@ -1,3 +1,6 @@
+0.21  Thu Nov 22 22:01:12 CET 2012
+    - FixRT #81332: _is_symlink fails test 157 using fake_symlinks in
+
 0.20  Wed Aug 26 15:19 2009
     - Many temporary-file-locking fixes to make
       PAR::Repository work on FreeBSD (Slaven Rezic)
